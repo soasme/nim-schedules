@@ -1,7 +1,8 @@
-# This is just an example to get you started. A typical library package
-# exports the main API in this file. Note that you cannot rename this file
-# but you can remove it if you wish.
+type
+  Beater = ref object of RootObj ## Beater generates beats for the next runs.
 
-proc add*(x, y: int): int =
-  ## Adds two files together.
-  return x + y
+  Runner = ref object of RootObj ## Runner runs the tasks.
+
+  Storage = ref object of RootObj ## Storage stores tasks definitions.
+
+  Scheduler = ref object of RootObj ## Scheduler schedules the tasks.
