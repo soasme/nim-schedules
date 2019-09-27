@@ -24,11 +24,6 @@ method nextTime*(self: IntervalBeater, asOf: DateTime, prev: DateTime): DateTime
   prev + self.interval
 
 type
-  ExecutorKind* = enum
-    ekThread,
-    ekProcess,
-    ekAsync
-
   TaskBase* = ref object of RootObj
     id: string
     beater: Beater
@@ -36,7 +31,8 @@ type
   Task*[TArg] = ref object of TaskBase
 
   ThreadedTask*[TArg] = ref object of Task[TArg]
-    thread: Thread[TArg]
+    thread: Thread[TArg] # deprecated
+    threads: seq[Thread[TArg]]
     when TArg is void:
       fn: proc () {.nimcall, gcsafe.}
     else:
@@ -45,6 +41,7 @@ type
 
   AsyncTask*[TArg] = ref object of Task[TArg]
     future: Future[void]
+    threads: seq[Future[void]]
     when TArg is void:
       fn: proc (): Future[void] {.nimcall.}
     else:
@@ -153,6 +150,6 @@ proc start(self: AsyncScheduler) {.async.} =
     echo(task.thread.running)
     prev = now()
 
-let sched = AsyncScheduler()
-asyncCheck sched.start()
-runForever()
+#let sched = AsyncScheduler()
+#asyncCheck sched.start()
+#runForever()

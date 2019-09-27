@@ -7,6 +7,11 @@
 
 import unittest
 
+import times
 import scheduler
-test "can add":
-  check add(5, 5) == 10
+
+test "IntervalBeater: next time":
+  let beater = IntervalBeater(interval: TimeInterval(seconds: 1))
+  let asOf = 100.fromUnix.utc
+  let prev = 0.fromUnix.utc
+  check beater.nextTime(asOf, prev) == 1.fromUnix.utc
