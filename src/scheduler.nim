@@ -81,75 +81,62 @@ type
 
   RunnerBase* = ref object of RootObj ## Untyped runner.
 
-  AsyncRunner*[TArg] = ref object of RunnerBase ## Runs in an async loop.
-    future: Future[void]
-    when TArg is void:
-      fn: proc (): Future[void] {.nimcall.}
-    else:
-      fn: proc (arg: TArg): Future[void] {.nimcall.}
-      arg: TArg
-
-  ThreadRunner*[TArg] = ref object of RunnerBase ## Runs in a thread.
-    thread: Thread[TArg]
-    when TArg is void:
-      fn: proc () {.nimcall, gcsafe.}
-    else:
-      fn: proc (arg: TArg) {.nimcall, gcsafe.}
-      arg: TArg
-
-  AnyRunner* = AsyncRunner | ThreadRunner
+  Runner*[TArg] = ref object of RunnerBase
+    case kind*: RunnerKind
+    of rkAsync:
+      when TArg is void:
+        asyncFn: proc (): Future[void] {.nimcall.}
+      else:
+        asyncFn: proc (arg: TArg): Future[void] {.nimcall.}
+        asyncArg: TArg
+    of rkThread:
+      when TArg is void:
+        threadFn: proc () {.nimcall, gcsafe.}
+      else:
+        threadFn: proc (arg: TArg) {.nimcall, gcsafe.}
+        threadArg: TArg
 
 proc initThreadRunner*(
   fn: proc() {.thread, nimcall.},
-): ThreadRunner[void] =
-  var thread: Thread[void]
-  ThreadRunner[void](thread: thread, fn: fn)
+): Runner[void] =
+  Runner[void](kind: rkThread, threadFn: fn)
 
 proc initThreadRunner*[TArg](
   fn: proc(arg: TArg) {.thread, nimcall.},
   arg: TArg,
-): ThreadRunner[TArg] =
-  var thread: Thread[TArg]
-  ThreadRunner[void](thread: thread, fn: fn, arg: arg)
+): Runner[TArg] =
+  Runner[TArg](kind: rkThread, threadFn: fn, threadArg: arg)
 
 proc initAsyncRunner*(
   fn: proc(): Future[void] {.nimcall.},
-): AsyncRunner[void] =
-  var future = newFuture[void]()
-  AsyncRunner[void](future: future, fn: fn)
+): Runner[void] =
+  Runner[void](kind: rkAsync, asyncFn: fn)
 
 proc initAsyncRunner*[TArg](
   fn: proc(): Future[TArg] {.nimcall.},
   arg: TArg,
-): AsyncRunner[TArg] =
-  var future = newFuture[TArg]()
-  AsyncRunner[TArg](future: future, fn: fn, arg: arg)
+): Runner[TArg] =
+  Runner[TArg](kind: rkAsync, asyncFn: fn, asyncArg: arg)
 
-proc kind*(runner: AnyRunner): RunnerKind = ## Returns the kind of any Runner type.
-  when runner is AsyncRunner:
-    rkAsync
-  elif runner is ThreadRunner:
-    rkThread
+#proc run*[TArg](runner: Runner[TArg]) =
+  #when TArg is void:
+    #createThread(runner.thread, runner.fn)
+  #else:
+    #createThread(runner.thread, runner.fn, runner.arg)
 
-proc run*[TArg](runner: ThreadRunner[TArg]) =
-  when TArg is void:
-    createThread(runner.thread, runner.fn)
-  else:
-    createThread(runner.thread, runner.fn, runner.arg)
+#proc run*[TArg](runner: AsyncRunner[TArg]) {.async.} =
+  #var fut = when TArg is void:
+    #fut = runner.fn()
+  #else:
+    #fut = runner.fn(runner.arg)
+  #runner.future = fut
+  #yield fut
 
-proc run*[TArg](runner: AsyncRunner[TArg]) {.async.} =
-  var fut = when TArg is void:
-    fut = runner.fn()
-  else:
-    fut = runner.fn(runner.arg)
-  runner.future = fut
-  yield fut
+#proc running*[TArg](runner: ThreadRunner[TArg]) =
+  #runner.thread.running
 
-proc running*[TArg](runner: ThreadRunner[TArg]) =
-  runner.thread.running
-
-proc running*[TArg](runner: AsyncRunner[TArg]) =
-  not (runner.future.finished or runner.future.failed)
+#proc running*[TArg](runner: AsyncRunner[TArg]) =
+  #not (runner.future.finished or runner.future.failed)
 
 type
   TaskBase* = ref object of RootObj ## Untyped Task.
