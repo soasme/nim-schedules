@@ -7,15 +7,47 @@
 
 import unittest
 
-import times
+import times, options
 import scheduler
 
-test "IntervalBeater: next time":
-  let beater = initIntervalBeater(TimeInterval(seconds: 1))
-  let prev = 0.fromUnix.utc
-  let now = 100.fromUnix.utc
-  check beater.fireTime(prev, now) == 1.fromUnix.utc
-
-test "IntervalBeater: $":
+test "IntervalBeater.$":
   let beater = initIntervalBeater(TimeInterval(seconds: 1))
   check $beater == "IntervalBeater(1 second)"
+
+test "IntervalBeater.fireTime | startTime hasn't come":
+  let current = now().utc()
+  let beater = initIntervalBeater(
+    initTimeInterval(seconds=10),
+    startTime=some(current + initTimeInterval(seconds=4))
+  )
+  let expect = current + initTimeInterval(seconds=4)
+  let actual = beater.fireTime(none(DateTime), current).get()
+  check actual == expect
+
+test "IntervalBeater.fireTime | startTime has come":
+  let current = now().utc()
+  let beater = initIntervalBeater(
+    initTimeInterval(seconds=10),
+    startTime=some(current - initTimeInterval(seconds=14))
+  )
+  let expect = current + initTimeInterval(seconds=6)
+  let actual = beater.fireTime(none(DateTime), current).get()
+  check actual == expect
+
+test "IntervalBeater.fireTime | startTime has come 2":
+  let current = now().utc()
+  let beater = initIntervalBeater(
+    initTimeInterval(seconds=10),
+    startTime=some(current - initTimeInterval(seconds=4))
+  )
+  let expect = current + initTimeInterval(seconds=6)
+  let actual = beater.fireTime(none(DateTime), current).get()
+  check actual == expect
+
+test "IntervalBeater.fireTime | some prev":
+  let current = now().utc()
+  let beater = initIntervalBeater(initTimeInterval(seconds=10))
+  let prev = some(current - initTimeInterval(seconds=4))
+  let actual = beater.fireTime(prev, current).get()
+  let expect = current + initTimeInterval(seconds=6)
+  check actual == expect

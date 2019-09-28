@@ -10,15 +10,15 @@ import options
 
 type
   Beater* = ref object of RootObj ## Beater generates beats for the next runs.
-    startTime: Option[DateTime]
+    startTime: DateTime
     endTime: Option[DateTime]
 
-method `$`*(self: Beater): string {.base.} = "Beater()"
+proc `$`*(self: Beater): string = "Beater()"
 
 method fireTime*(
   self: Beater,
-  prev: DateTime,
-  now: DateTime,
+  prev: Option[DateTime],
+  now: DateTime, ## current datetime
 ): Option[DateTime] {.base.} =
   ## Returns the next fire time of a task execution.
   ##
@@ -29,14 +29,7 @@ method fireTime*(
 type
   CronBeater* = ref object of Beater ## CronBeater generates beats like crontab.
 
-method `$`*(self: CronBeater): string = "CronBeater()"
-
-method fireTime*(
-  self: CronBeater,
-  prev: DateTime,
-  now: DateTime
-): Option[DateTime] =
-  none(DateTime)
+proc `$`*(self: CronBeater): string = "CronBeater()"
 
 type
   IntervalBeater* = ref object of Beater ## IntervalBeater generates beats
@@ -48,22 +41,45 @@ proc initIntervalBeater*(
   startTime: Option[DateTime] = none(DateTime),
   endTime: Option[DateTime] = none(DateTime),
 ): IntervalBeater =
-  ## Initialize a IntervalBeater.
+  ## Initialize an IntervalBeater.
   IntervalBeater(
     interval: interval,
-    startTime: startTime,
+    startTime: if startTime.isSome: startTime.get() else: now(),
     endTime: endTime,
   )
 
-method `$`*(self: IntervalBeater): string = "IntervalBeater(" & $self.interval & ")"
+proc `$`*(self: IntervalBeater): string =
+  "IntervalBeater(" & $self.interval & ")"
 
 method fireTime*(
   self: IntervalBeater,
-  prev: DateTime,
+  prev: Option[DateTime],
   now: DateTime
-): DateTime =
+): Option[DateTime] =
   ## Returns the next fire time of a task execution.
-  prev + self.interval
+  ##
+  ## For IntervalBeater, it has below rules:
+  ##
+  ## * For the 1st run,
+  ##   * Choose `startTime` if it hasn't come.
+  ##   * Choose the next `startTime + N * interval` that hasn't come.
+  ## * For the rest of runs,
+  ##   * Choose `prev + interval`.
+  result = some(
+    if prev.isNone:
+      if self.startTime >= now:
+        self.startTime
+      else:
+        let passed = cast[int](now.toTime.toUnix - self.startTime.toTime.toUnix)
+        let intervalLen = cast[int]((0.fromUnix + self.interval).toUnix)
+        let leftSec = intervalLen - passed mod intervalLen
+        now + initTimeInterval(seconds=leftSec)
+    else:
+      prev.get() + self.interval
+  )
+
+  if self.endTime.isSome and result.get() > self.endTime.get():
+    result = none(DateTime)
 
 type
   TaskBase* = ref object of RootObj ## The base object of Task.
@@ -95,7 +111,7 @@ type
 
 proc newThreadedTask*(fn: proc() {.thread, nimcall.}, beater: Beater, id=""): ThreadedTask[void] =
   var thread: Thread[void]
-  result = ThreadedTask[void](
+  return ThreadedTask[void](
     id: id,
     thread: thread,
     fn: fn,
@@ -110,7 +126,7 @@ proc newThreadedTask*[TArg](
   id=""
 ): ThreadedTask[TArg] =
   var thread: Thread[TArg]
-  result = ThreadedTask[TArg](
+  return ThreadedTask[TArg](
     id: id,
     thread: thread,
     fn: fn,
@@ -207,11 +223,7 @@ proc atick() {.async.} =
   echo("async tick")
 
 proc start(self: AsyncScheduler) {.async.} =
-  let beater = IntervalBeater(
-    interval: TimeInterval(seconds: 1),
-    startTime: none(DateTime),
-    endTime: none(DateTime),
-  )
+  let beater = initIntervalBeater(interval=TimeInterval(seconds: 1))
   let task = newThreadedTask[DateTime](tick, now(), beater=beater)
   let atask = newAsyncTask(atick, beater=beater)
   #let task = newThreadedTask(tick2, beater)
