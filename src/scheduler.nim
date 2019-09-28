@@ -6,30 +6,50 @@ import threadpool
 import asyncdispatch
 import asyncfutures
 import times
+import options
 
 type
   Beater* = ref object of RootObj ## Beater generates beats for the next runs.
 
 method `$`*(self: Beater): string {.base.} = "Beater()"
 
-method fireTime*(self: Beater, asOf: DateTime, prev: DateTime): DateTime {.base.} =
-  0.fromUnix.utc
+method fireTime*(
+  self: Beater,
+  prev: DateTime,
+  now: DateTime,
+): Option[DateTime] {.base.} =
+  ## Returns the next fire time of a task execution.
+  ##
+  ## If the task should not be executed, return none.
+  ## Otherwise, return some DateTime.
+  none(DateTime)
 
 type
   CronBeater* = ref object of Beater ## CronBeater generates beats like crontab.
 
 method `$`*(self: CronBeater): string = "CronBeater()"
 
+method fireTime*(
+  self: CronBeater,
+  prev: DateTime,
+  now: DateTime
+): Option[DateTime] =
+  none(DateTime)
+
 type
   IntervalBeater* = ref object of Beater ## IntervalBeater generates beats
                                          ## at a fixed intervals of time.
     interval*: TimeInterval
 
-method `$`*(self: IntervalBeater): string = "IntervalBeater()"
+method `$`*(self: IntervalBeater): string = "IntervalBeater(" & $self.interval & ")"
 
-method fireTime*(self: IntervalBeater, asOf: DateTime, prev: DateTime): DateTime =
+method fireTime*(
+  self: IntervalBeater,
+  prev: DateTime,
+  now: DateTime
+): DateTime =
+  ## Returns the next fire time of a task execution.
   prev + self.interval
-
 
 type
   TaskBase* = ref object of RootObj ## The base object of Task.
@@ -39,7 +59,7 @@ type
     ignoreDue: bool # Whether to ignore due task executions.
     maxDue: Duration # The max duration the task is allowed to due.
     parallel: int # The maximum number of parallel running task executions.
-    fireTime: DateTime # The next scheduled run time.
+    fireTime: Option[DateTime] # The next scheduled run time.
 
   ThreadedTask*[TArg] = ref object of TaskBase
     thread: Thread[TArg] # deprecated
@@ -66,7 +86,7 @@ proc newThreadedTask*(fn: proc() {.thread, nimcall.}, beater: Beater, id=""): Th
     thread: thread,
     fn: fn,
     beater: beater,
-    fireTime: 0.fromUnix.utc,
+    fireTime: none(DateTime),
   )
 
 proc newThreadedTask*[TArg](
@@ -82,7 +102,7 @@ proc newThreadedTask*[TArg](
     fn: fn,
     arg: arg,
     beater: beater,
-    fireTime: 0.fromUnix.utc,
+    fireTime: none(DateTime),
   )
 
 proc newAsyncTask*(
@@ -96,7 +116,7 @@ proc newAsyncTask*(
     future: future,
     fn: fn,
     beater: beater,
-    fireTime: 0.fromUnix.utc,
+    fireTime: none(DateTime),
   )
 
 proc newAsyncTask*[TArg](
@@ -106,7 +126,14 @@ proc newAsyncTask*[TArg](
   id=""
 ): AsyncTask[TArg] =
   var future = newFuture[void](id)
-  result = AsyncTask[TArg](id: id, future: future, fn: fn, arg: arg, beater: beater)
+  result = AsyncTask[TArg](
+    id: id,
+    future: future,
+    fn: fn,
+    arg: arg,
+    beater: beater,
+    fireTime: none(DateTime),
+  )
 
 proc fire*(task: ThreadedTask[void]) =
   createThread(task.thread, task.fn)
