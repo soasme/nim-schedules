@@ -11,12 +11,12 @@ import times, options
 import scheduler
 
 test "IntervalBeater.$":
-  let beater = initIntervalBeater(TimeInterval(seconds: 1))
+  let beater = initBeater(TimeInterval(seconds: 1))
   check $beater == "Beater(bkInterval,1 second)"
 
 test "IntervalBeater.fireTime | startTime hasn't come":
   let current = now().utc()
-  let beater = initIntervalBeater(
+  let beater = initBeater(
     initTimeInterval(seconds=10),
     startTime=some(current + initTimeInterval(seconds=4))
   )
@@ -26,7 +26,7 @@ test "IntervalBeater.fireTime | startTime hasn't come":
 
 test "IntervalBeater.fireTime | startTime has come":
   let current = now().utc()
-  let beater = initIntervalBeater(
+  let beater = initBeater(
     initTimeInterval(seconds=10),
     startTime=some(current - initTimeInterval(seconds=14))
   )
@@ -36,7 +36,7 @@ test "IntervalBeater.fireTime | startTime has come":
 
 test "IntervalBeater.fireTime | startTime has come 2":
   let current = now().utc()
-  let beater = initIntervalBeater(
+  let beater = initBeater(
     initTimeInterval(seconds=10),
     startTime=some(current - initTimeInterval(seconds=4))
   )
@@ -46,7 +46,7 @@ test "IntervalBeater.fireTime | startTime has come 2":
 
 test "IntervalBeater.fireTime | some prev":
   let current = now().utc()
-  let beater = initIntervalBeater(initTimeInterval(seconds=10))
+  let beater = initBeater(initTimeInterval(seconds=10))
   let prev = some(current - initTimeInterval(seconds=4))
   let actual = beater.fireTime(prev, current).get()
   let expect = current + initTimeInterval(seconds=6)

@@ -1,4 +1,4 @@
-## 
+##
 ## Basic Concepts
 ##
 ##
@@ -22,7 +22,14 @@ type
     of bkCron:
       expr*: string # TODO, parse `* * * * *`
 
-proc initIntervalBeater*(
+proc `$`*(beater: Beater): string =
+  case beater.kind
+  of bkInterval:
+    "Beater(" & $beater.kind & "," & $beater.interval & ")"
+  of bkCron:
+    "Beater(" & $beater.kind & "," & beater.expr & ")"
+
+proc initBeater*(
   interval: TimeInterval,
   startTime: Option[DateTime] = none(DateTime),
   endTime: Option[DateTime] = none(DateTime),
@@ -36,13 +43,6 @@ proc initIntervalBeater*(
     startTime: if startTime.isSome: startTime.get() else: now(),
     endTime: endTime,
   )
-
-proc `$`*(beater: Beater): string =
-  case beater.kind
-  of bkInterval:
-    "Beater(" & $beater.kind & "," & $beater.interval & ")"
-  of bkCron:
-    "Beater(" & $beater.kind & "," & beater.expr & ")"
 
 proc fireTime*(
   self: Beater,
@@ -216,7 +216,7 @@ proc atick() {.async.} =
   echo("async tick")
 
 proc start(self: AsyncScheduler) {.async.} =
-  let beater = initIntervalBeater(interval=TimeInterval(seconds: 1))
+  let beater = initBeater(interval=TimeInterval(seconds: 1))
   let task = newThreadedTask[DateTime](tick, now(), beater=beater)
   let atask = newAsyncTask(atick, beater=beater)
   #let task = newThreadedTask(tick2, beater)
