@@ -10,6 +10,8 @@ import options
 
 type
   Beater* = ref object of RootObj ## Beater generates beats for the next runs.
+    startTime: Option[DateTime]
+    endTime: Option[DateTime]
 
 method `$`*(self: Beater): string {.base.} = "Beater()"
 
@@ -40,6 +42,18 @@ type
   IntervalBeater* = ref object of Beater ## IntervalBeater generates beats
                                          ## at a fixed intervals of time.
     interval*: TimeInterval
+
+proc initIntervalBeater*(
+  interval: TimeInterval,
+  startTime: Option[DateTime] = none(DateTime),
+  endTime: Option[DateTime] = none(DateTime),
+): IntervalBeater =
+  ## Initialize a IntervalBeater.
+  IntervalBeater(
+    interval: interval,
+    startTime: startTime,
+    endTime: endTime,
+  )
 
 method `$`*(self: IntervalBeater): string = "IntervalBeater(" & $self.interval & ")"
 
@@ -193,7 +207,11 @@ proc atick() {.async.} =
   echo("async tick")
 
 proc start(self: AsyncScheduler) {.async.} =
-  let beater = IntervalBeater(interval: TimeInterval(seconds: 1))
+  let beater = IntervalBeater(
+    interval: TimeInterval(seconds: 1),
+    startTime: none(DateTime),
+    endTime: none(DateTime),
+  )
   let task = newThreadedTask[DateTime](tick, now(), beater=beater)
   let atask = newAsyncTask(atick, beater=beater)
   #let task = newThreadedTask(tick2, beater)

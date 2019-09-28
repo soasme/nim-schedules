@@ -11,11 +11,11 @@ import times
 import scheduler
 
 test "IntervalBeater: next time":
-  let beater = IntervalBeater(interval: TimeInterval(seconds: 1))
+  let beater = initIntervalBeater(TimeInterval(seconds: 1))
   let prev = 0.fromUnix.utc
   let now = 100.fromUnix.utc
   check beater.fireTime(prev, now) == 1.fromUnix.utc
 
 test "IntervalBeater: $":
-  let beater = IntervalBeater(interval: TimeInterval(seconds: 1))
+  let beater = initIntervalBeater(TimeInterval(seconds: 1))
   check $beater == "IntervalBeater(1 second)"
