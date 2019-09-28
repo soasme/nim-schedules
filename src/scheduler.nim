@@ -99,6 +99,32 @@ type
 
   AnyRunner* = AsyncRunner | ThreadRunner
 
+proc initThreadRunner*(
+  fn: proc() {.thread, nimcall.},
+): ThreadRunner[void] =
+  var thread: Thread[void]
+  ThreadRunner[void](thread: thread, fn: fn)
+
+proc initThreadRunner*[TArg](
+  fn: proc(arg: TArg) {.thread, nimcall.},
+  arg: TArg,
+): ThreadRunner[TArg] =
+  var thread: Thread[TArg]
+  ThreadRunner[void](thread: thread, fn: fn, arg: arg)
+
+proc initAsyncRunner*(
+  fn: proc(): Future[void] {.nimcall.},
+): AsyncRunner[void] =
+  var future = newFuture[void]()
+  AsyncRunner[void](future: future, fn: fn)
+
+proc initAsyncRunner*[TArg](
+  fn: proc(): Future[TArg] {.nimcall.},
+  arg: TArg,
+): AsyncRunner[TArg] =
+  var future = newFuture[TArg]()
+  AsyncRunner[TArg](future: future, fn: fn, arg: arg)
+
 proc kind*(runner: AnyRunner): RunnerKind = ## Returns the kind of any Runner type.
   when runner is AsyncRunner:
     rkAsync
@@ -119,11 +145,18 @@ proc run*[TArg](runner: AsyncRunner[TArg]) {.async.} =
   runner.future = fut
   yield fut
 
+proc running*[TArg](runner: ThreadRunner[TArg]) =
+  runner.thread.running
+
+proc running*[TArg](runner: AsyncRunner[TArg]) =
+  not (runner.future.finished or runner.future.failed)
+
 type
   TaskBase* = ref object of RootObj ## Untyped Task.
     id: string # The unique identity of the task.
     description: string # The description of the task.
     beater: Beater # The schedule of the task.
+    runner: RunnerBase # The runner of the task.
     ignoreDue: bool # Whether to ignore due task executions.
     maxDue: Duration # The max duration the task is allowed to due.
     parallel: int # The maximum number of parallel running task executions.
@@ -131,7 +164,6 @@ type
 
   ThreadedTask*[TArg] = ref object of TaskBase
     thread: Thread[TArg] # deprecated
-    threads: seq[Thread[TArg]]
     when TArg is void:
       fn: proc () {.nimcall, gcsafe.}
     else:
@@ -140,7 +172,6 @@ type
 
   AsyncTask*[TArg] = ref object of TaskBase
     future: Future[void]
-    futures: seq[Future[void]]
     when TArg is void:
       fn: proc (): Future[void] {.nimcall.}
     else:
@@ -223,21 +254,8 @@ proc fire*[TArg](task: AsyncTask[TArg]) {.async.} =
   if fut.failed:
     echo("AsyncTask " & task.id & " fire failed.")
 
-proc running*[TArg](task: ThreadedTask[TArg]) =
-  task.thread.running
-
-proc running*[TArg](task: AsyncTask[TArg]) =
-  not (task.future.finished or task.future.failed)
-
-
-type
-  Storage* = ref object of RootObj ## Storage stores tasks definitions.
-
 type
   Scheduler* = ref object of RootObj ## Scheduler acts as an event loop and schedules all the tasks.
-
-type
-  MemStorage* = ref object of Storage
 
 type
   AsyncScheduler* = ref object of Scheduler
@@ -261,10 +279,7 @@ proc start(self: AsyncScheduler) {.async.} =
   while true:
     asyncCheck atask.fire()
     task.fire()
-
-    echo(task.thread.running)
     await sleepAsync(1000)
-    echo(task.thread.running)
     prev = now()
 
 #let sched = AsyncScheduler()
