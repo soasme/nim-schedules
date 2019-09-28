@@ -10,27 +10,31 @@ import times
 type
   Beater* = ref object of RootObj ## Beater generates beats for the next runs.
 
-method nextTime*(self: Beater, asOf: DateTime, prev: DateTime): DateTime {.base.} =
+method fireTime*(self: Beater, asOf: DateTime, prev: DateTime): DateTime {.base.} =
   0.fromUnix.utc
 
 type
-  CronBeater* = ref object of Beater
+  CronBeater* = ref object of Beater ## CronBeater generates beats like crontab.
 
 type
-  IntervalBeater* = ref object of Beater
+  IntervalBeater* = ref object of Beater ## IntervalBeater generates beats
+                                         ## at a fixed intervals of time.
     interval*: TimeInterval
 
-method nextTime*(self: IntervalBeater, asOf: DateTime, prev: DateTime): DateTime =
+method fireTime*(self: IntervalBeater, asOf: DateTime, prev: DateTime): DateTime =
   prev + self.interval
 
 type
-  TaskBase* = ref object of RootObj
-    id: string
-    beater: Beater
+  TaskBase* = ref object of RootObj ## The base object of Task.
+    id: string # The unique identity of the task.
+    desc: string # The description of the task.
+    beater: Beater # The schedule of the task.
+    ignoreDue: bool # Whether to ignore due task executions.
+    maxDue: Duration # The max duration the task is allowed to due.
+    parallel: int # The maximum number of parallel running task executions.
+    fireTime: DateTime # The next scheduled run time.
 
-  Task*[TArg] = ref object of TaskBase
-
-  ThreadedTask*[TArg] = ref object of Task[TArg]
+  ThreadedTask*[TArg] = ref object of TaskBase
     thread: Thread[TArg] # deprecated
     threads: seq[Thread[TArg]]
     when TArg is void:
@@ -39,7 +43,7 @@ type
       fn: proc (arg: TArg) {.nimcall, gcsafe.}
       arg: TArg
 
-  AsyncTask*[TArg] = ref object of Task[TArg]
+  AsyncTask*[TArg] = ref object of TaskBase
     future: Future[void]
     threads: seq[Future[void]]
     when TArg is void:
@@ -50,7 +54,13 @@ type
 
 proc newThreadedTask*(fn: proc() {.thread, nimcall.}, beater: Beater, id=""): ThreadedTask[void] =
   var thread: Thread[void]
-  result = ThreadedTask[void](id: id, thread: thread, fn: fn, beater: beater)
+  result = ThreadedTask[void](
+    id: id,
+    thread: thread,
+    fn: fn,
+    beater: beater,
+    fireTime: 0.fromUnix.utc,
+  )
 
 proc newThreadedTask*[TArg](
   fn: proc(arg: TArg) {.thread, nimcall.},
@@ -59,7 +69,14 @@ proc newThreadedTask*[TArg](
   id=""
 ): ThreadedTask[TArg] =
   var thread: Thread[TArg]
-  result = ThreadedTask[TArg](id: id, thread: thread, fn: fn, arg: arg, beater: beater)
+  result = ThreadedTask[TArg](
+    id: id,
+    thread: thread,
+    fn: fn,
+    arg: arg,
+    beater: beater,
+    fireTime: 0.fromUnix.utc,
+  )
 
 proc newAsyncTask*(
   fn: proc(): Future[void] {.nimcall.},
@@ -67,7 +84,13 @@ proc newAsyncTask*(
   id=""
 ): AsyncTask[void] =
   var future = newFuture[void](id)
-  result = AsyncTask[void](id: id, future: future, fn: fn, beater: beater)
+  result = AsyncTask[void](
+    id: id,
+    future: future,
+    fn: fn,
+    beater: beater,
+    fireTime: 0.fromUnix.utc,
+  )
 
 proc newAsyncTask*[TArg](
   fn: proc(arg: TArg): Future[void] {.nimcall.},
