@@ -12,7 +12,7 @@ import scheduler
 
 test "IntervalBeater.$":
   let beater = initIntervalBeater(TimeInterval(seconds: 1))
-  check $beater == "IntervalBeater(1 second)"
+  check $beater == "Beater(bkInterval,1 second)"
 
 test "IntervalBeater.fireTime | startTime hasn't come":
   let current = now().utc()

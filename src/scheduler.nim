@@ -27,7 +27,9 @@ proc initIntervalBeater*(
   startTime: Option[DateTime] = none(DateTime),
   endTime: Option[DateTime] = none(DateTime),
 ): Beater =
-  ## Initialize an IntervalBeater.
+  ## Initialize a Beater, which kind is bkInterval.
+  ##
+  ## startTime and endTime are optional.
   Beater(
     kind: bkInterval,
     interval: interval,
@@ -36,7 +38,11 @@ proc initIntervalBeater*(
   )
 
 proc `$`*(beater: Beater): string =
-  "Beater(" & $beater.kind & "," & $beater.interval & ")"
+  case beater.kind
+  of bkInterval:
+    "Beater(" & $beater.kind & "," & $beater.interval & ")"
+  of bkCron:
+    "Beater(" & $beater.kind & "," & beater.expr & ")"
 
 proc fireTime*(
   self: Beater,
