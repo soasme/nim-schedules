@@ -6,6 +6,7 @@ import threadpool
 import asyncdispatch
 import asyncfutures
 import times
+import tables
 import options
 
 type
@@ -75,56 +76,75 @@ proc fireTime*(
     result = none(DateTime)
 
 type
-  RunnerKind* = enum
-    rkAsync,
-    rkThread
+  FnKind* = enum
+    fkAsync,
+    fkThread
 
-  RunnerBase* = ref object of RootObj ## Untyped runner.
+  FnBase* = ref object of RootObj ## Untyped Fn.
 
-  Runner*[TArg] = ref object of RunnerBase
-    case kind*: RunnerKind
-    of rkAsync:
+  Fn*[TArg] = ref object of FnBase ## Typed Fn.
+  ## It wraps the function and its arg.
+  ##
+  ## Currently, Fn supports proc running asynchronously or in threads.
+    case kind*: FnKind
+    of fkAsync:
       when TArg is void:
         asyncFn: proc (): Future[void] {.nimcall.}
       else:
         asyncFn: proc (arg: TArg): Future[void] {.nimcall.}
         asyncArg: TArg
-    of rkThread:
+    of fkThread:
       when TArg is void:
         threadFn: proc () {.nimcall, gcsafe.}
       else:
         threadFn: proc (arg: TArg) {.nimcall, gcsafe.}
         threadArg: TArg
 
-proc initThreadRunner*(
+proc initThreadFn*(
   fn: proc() {.thread, nimcall.},
-): Runner[void] =
-  Runner[void](kind: rkThread, threadFn: fn)
+): Fn[void] =
+  Fn[void](kind: fkThread, threadFn: fn)
 
-proc initThreadRunner*[TArg](
+proc initThreadFn*[TArg](
   fn: proc(arg: TArg) {.thread, nimcall.},
   arg: TArg,
-): Runner[TArg] =
-  Runner[TArg](kind: rkThread, threadFn: fn, threadArg: arg)
+): Fn[TArg] =
+  Fn[TArg](kind: fkThread, threadFn: fn, threadArg: arg)
 
-proc initAsyncRunner*(
+proc initAsyncFn*(
   fn: proc(): Future[void] {.nimcall.},
-): Runner[void] =
-  Runner[void](kind: rkAsync, asyncFn: fn)
+): Fn[void] =
+  Fn[void](kind: fkAsync, asyncFn: fn)
 
-proc initAsyncRunner*[TArg](
+proc initAsyncFn*[TArg](
   fn: proc(): Future[TArg] {.nimcall.},
   arg: TArg,
-): Runner[TArg] =
-  Runner[TArg](kind: rkAsync, asyncFn: fn, asyncArg: arg)
+): Fn[TArg] =
+  Fn[TArg](kind: fkAsync, asyncFn: fn, asyncArg: arg)
 
-#proc run*[TArg](runner: Runner[TArg]) =
+type
+  Job* = ref object of RootObj ## Untyped Job.
+    id: string # The unique identity of the job.
+    description: string # The description of the job.
+    beater: Beater # The schedule of the job.
+    f: FnBase # The runner of the job.
+    ignoreDue: bool # Whether to ignore due job executions.
+    maxDue: Duration # The max duration the job is allowed to due.
+    parallel: int # The maximum number of parallel running job executions.
+    fireTime: Option[DateTime] # The next scheduled run time.
+
+proc `beater=`(job: Job, beater: Beater) =
+  job.beater = beater
+
+
+
+#proc run*[TArg](runner: Fn[TArg]) =
   #when TArg is void:
     #createThread(runner.thread, runner.fn)
   #else:
     #createThread(runner.thread, runner.fn, runner.arg)
 
-#proc run*[TArg](runner: AsyncRunner[TArg]) {.async.} =
+#proc run*[TArg](runner: AsyncFn[TArg]) {.async.} =
   #var fut = when TArg is void:
     #fut = runner.fn()
   #else:
@@ -132,10 +152,10 @@ proc initAsyncRunner*[TArg](
   #runner.future = fut
   #yield fut
 
-#proc running*[TArg](runner: ThreadRunner[TArg]) =
+#proc running*[TArg](runner: ThreadFn[TArg]) =
   #runner.thread.running
 
-#proc running*[TArg](runner: AsyncRunner[TArg]) =
+#proc running*[TArg](runner: AsyncFn[TArg]) =
   #not (runner.future.finished or runner.future.failed)
 
 type
@@ -143,7 +163,7 @@ type
     id: string # The unique identity of the task.
     description: string # The description of the task.
     beater: Beater # The schedule of the task.
-    runner: RunnerBase # The runner of the task.
+    f: FnBase # The runner of the task.
     ignoreDue: bool # Whether to ignore due task executions.
     maxDue: Duration # The max duration the task is allowed to due.
     parallel: int # The maximum number of parallel running task executions.
