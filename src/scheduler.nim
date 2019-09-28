@@ -9,56 +9,43 @@ import times
 import options
 
 type
+  BeaterKind* {.pure.} = enum
+    bkInterval
+    bkCron
+
   Beater* = ref object of RootObj ## Beater generates beats for the next runs.
     startTime: DateTime
     endTime: Option[DateTime]
-
-proc `$`*(self: Beater): string = "Beater()"
-
-method fireTime*(
-  self: Beater,
-  prev: Option[DateTime],
-  now: DateTime, ## current datetime
-): Option[DateTime] {.base.} =
-  ## Returns the next fire time of a task execution.
-  ##
-  ## If the task should not be executed, return none.
-  ## Otherwise, return some DateTime.
-  none(DateTime)
-
-type
-  CronBeater* = ref object of Beater ## CronBeater generates beats like crontab.
-
-proc `$`*(self: CronBeater): string = "CronBeater()"
-
-type
-  IntervalBeater* = ref object of Beater ## IntervalBeater generates beats
-                                         ## at a fixed intervals of time.
-    interval*: TimeInterval
+    case kind*: BeaterKind
+    of bkInterval:
+      interval*: TimeInterval
+    of bkCron:
+      expr*: string # TODO, parse `* * * * *`
 
 proc initIntervalBeater*(
   interval: TimeInterval,
   startTime: Option[DateTime] = none(DateTime),
   endTime: Option[DateTime] = none(DateTime),
-): IntervalBeater =
+): Beater =
   ## Initialize an IntervalBeater.
-  IntervalBeater(
+  Beater(
+    kind: bkInterval,
     interval: interval,
     startTime: if startTime.isSome: startTime.get() else: now(),
     endTime: endTime,
   )
 
-proc `$`*(self: IntervalBeater): string =
-  "IntervalBeater(" & $self.interval & ")"
+proc `$`*(beater: Beater): string =
+  "Beater(" & $beater.kind & "," & $beater.interval & ")"
 
-method fireTime*(
-  self: IntervalBeater,
+proc fireTime*(
+  self: Beater,
   prev: Option[DateTime],
   now: DateTime
 ): Option[DateTime] =
   ## Returns the next fire time of a task execution.
   ##
-  ## For IntervalBeater, it has below rules:
+  ## For bkInterval, it has below rules:
   ##
   ## * For the 1st run,
   ##   * Choose `startTime` if it hasn't come.
