@@ -75,9 +75,54 @@ proc fireTime*(
     result = none(DateTime)
 
 type
-  TaskBase* = ref object of RootObj ## The base object of Task.
+  RunnerKind* = enum
+    rkAsync,
+    rkThread
+
+  RunnerBase* = ref object of RootObj ## Untyped runner.
+
+  AsyncRunner*[TArg] = ref object of RunnerBase ## Runs in an async loop.
+    future: Future[void]
+    when TArg is void:
+      fn: proc (): Future[void] {.nimcall.}
+    else:
+      fn: proc (arg: TArg): Future[void] {.nimcall.}
+      arg: TArg
+
+  ThreadRunner*[TArg] = ref object of RunnerBase ## Runs in a thread.
+    thread: Thread[TArg]
+    when TArg is void:
+      fn: proc () {.nimcall, gcsafe.}
+    else:
+      fn: proc (arg: TArg) {.nimcall, gcsafe.}
+      arg: TArg
+
+  AnyRunner* = AsyncRunner | ThreadRunner
+
+proc kind*(runner: AnyRunner): RunnerKind = ## Returns the kind of any Runner type.
+  when runner is AsyncRunner:
+    rkAsync
+  elif runner is ThreadRunner:
+    rkThread
+
+proc run*[TArg](runner: ThreadRunner[TArg]) =
+  when TArg is void:
+    createThread(runner.thread, runner.fn)
+  else:
+    createThread(runner.thread, runner.fn, runner.arg)
+
+proc run*[TArg](runner: AsyncRunner[TArg]) {.async.} =
+  var fut = when TArg is void:
+    fut = runner.fn()
+  else:
+    fut = runner.fn(runner.arg)
+  runner.future = fut
+  yield fut
+
+type
+  TaskBase* = ref object of RootObj ## Untyped Task.
     id: string # The unique identity of the task.
-    desc: string # The description of the task.
+    description: string # The description of the task.
     beater: Beater # The schedule of the task.
     ignoreDue: bool # Whether to ignore due task executions.
     maxDue: Duration # The max duration the task is allowed to due.
@@ -95,7 +140,7 @@ type
 
   AsyncTask*[TArg] = ref object of TaskBase
     future: Future[void]
-    threads: seq[Future[void]]
+    futures: seq[Future[void]]
     when TArg is void:
       fn: proc (): Future[void] {.nimcall.}
     else:
@@ -184,8 +229,6 @@ proc running*[TArg](task: ThreadedTask[TArg]) =
 proc running*[TArg](task: AsyncTask[TArg]) =
   not (task.future.finished or task.future.failed)
 
-type
-  Runner* = ref object of RootObj ## Runner runs the tasks.
 
 type
   Storage* = ref object of RootObj ## Storage stores tasks definitions.
@@ -195,12 +238,6 @@ type
 
 type
   MemStorage* = ref object of Storage
-
-type
-  AsyncRunner* = ref object of Runner
-
-type
-  ThreadRunner* = ref object of Runner
 
 type
   AsyncScheduler* = ref object of Scheduler
