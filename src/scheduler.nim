@@ -7,6 +7,7 @@ import asyncdispatch
 import asyncfutures
 import times
 import tables
+import strutils
 import options
 
 type
@@ -136,7 +137,36 @@ type
 proc `beater=`(job: Job, beater: Beater) =
   job.beater = beater
 
+type
+  JobCanceled = object of Exception
 
+  JobMaxInstancesReached = object of Exception
+
+type
+  Runner* = ref object of RootObj
+    jobNums: Table[string, int]
+    pendingFutures: seq[Future[void]]
+
+proc initRunner*(): Runner =
+  Runner(jobNums: initTable[string, int](), pendingFutures: @[])
+
+proc shutdown*(runner: Runner) =
+  for fut in runner.pendingFutures:
+    fut.fail(newException(JobCanceled, "runner is shutting down."))
+  runner.pendingFutures = @[]
+
+template keepNums*(runner: Runner, job: Job, body: untyped) =
+  if runner.jobNums[job.id] >= job.parallel:
+    raise newException(
+      JobMaxInstancesReached,
+      "id:" & job.id & ", max=" & job.parallel.intToStr
+    )
+  body
+  runner.jobNums[job.id] += 1
+
+proc submit*(runner: Runner, job: Job) {.async.} =
+  runner.keepNums(job):
+    echo("hello")
 
 #proc run*[TArg](runner: Fn[TArg]) =
   #when TArg is void:
