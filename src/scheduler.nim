@@ -10,19 +10,26 @@ import times
 type
   Beater* = ref object of RootObj ## Beater generates beats for the next runs.
 
+method `$`*(self: Beater): string {.base.} = "Beater()"
+
 method fireTime*(self: Beater, asOf: DateTime, prev: DateTime): DateTime {.base.} =
   0.fromUnix.utc
 
 type
   CronBeater* = ref object of Beater ## CronBeater generates beats like crontab.
 
+method `$`*(self: CronBeater): string = "CronBeater()"
+
 type
   IntervalBeater* = ref object of Beater ## IntervalBeater generates beats
                                          ## at a fixed intervals of time.
     interval*: TimeInterval
 
+method `$`*(self: IntervalBeater): string = "IntervalBeater()"
+
 method fireTime*(self: IntervalBeater, asOf: DateTime, prev: DateTime): DateTime =
   prev + self.interval
+
 
 type
   TaskBase* = ref object of RootObj ## The base object of Task.
