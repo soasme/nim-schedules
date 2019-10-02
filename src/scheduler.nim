@@ -1,14 +1,31 @@
-##
-## Basic Concepts
-##
-##
-import threadpool
-import asyncdispatch
-import asyncfutures
-import times
-import tables
-import strutils
-import options
+import macros, macrocache, options, times, asyncdispatch, tables
+
+type
+  BeaterErrorKind* = enum
+    BeaterInternalError
+
+  BeaterError* = object
+    case kind*: BeaterErrorKind
+    of BeaterInternalError:
+      exc: ref Exception
+
+  ErrorProc* = proc (err: BeaterError): Future[void] {.gcsafe, closure.}
+
+proc initBeaterInternalError(exc: ref Exception): BeaterError =
+  BeaterError(kind: BeaterInternalError, exc: exc)
+
+type
+  BeaterProcAsync* = proc (): Future[void] {.gcsafe, closure.}
+
+  BeaterProcSync* = proc (): void {.gcsafe, thread.}
+
+  BeaterProc = object
+    case async: bool
+    of true:
+      asyncProc: BeaterProcAsync
+    of false:
+      syncProc: BeaterProcSync
+
 
 type
   BeaterKind* {.pure.} = enum
@@ -18,6 +35,7 @@ type
   Beater* = ref object of RootObj ## Beater generates beats for the next runs.
     startTime: DateTime
     endTime: Option[DateTime]
+    beaterProc: BeaterProc
     case kind*: BeaterKind
     of bkInterval:
       interval*: TimeInterval
@@ -33,6 +51,7 @@ proc `$`*(beater: Beater): string =
 
 proc initBeater*(
   interval: TimeInterval,
+  asyncProc: BeaterProcAsync,
   startTime: Option[DateTime] = none(DateTime),
   endTime: Option[DateTime] = none(DateTime),
 ): Beater =
@@ -42,6 +61,24 @@ proc initBeater*(
   Beater(
     kind: bkInterval,
     interval: interval,
+    beaterProc: BeaterProc(async: true, asyncProc: asyncProc),
+    startTime: if startTime.isSome: startTime.get() else: now(),
+    endTime: endTime,
+  )
+
+proc initBeater*(
+  interval: TimeInterval,
+  syncProc: BeaterProcSync,
+  startTime: Option[DateTime] = none(DateTime),
+  endTime: Option[DateTime] = none(DateTime),
+): Beater =
+  ## Initialize a Beater, which kind is bkInterval.
+  ##
+  ## startTime and endTime are optional.
+  Beater(
+    kind: bkInterval,
+    interval: interval,
+    beaterProc: BeaterProc(async: false, syncProc: syncProc),
     startTime: if startTime.isSome: startTime.get() else: now(),
     endTime: endTime,
   )
@@ -60,6 +97,9 @@ proc fireTime*(
   ##   * Choose the next `startTime + N * interval` that hasn't come.
   ## * For the rest of runs,
   ##   * Choose `prev + interval`.
+  ##
+  ## If `self.endTime` is set and greater than the fire time,
+  ## a `none(DateTime)` is returned.
   result = some(
     if prev.isNone:
       if self.startTime >= now:
@@ -76,249 +116,121 @@ proc fireTime*(
   if self.endTime.isSome and result.get() > self.endTime.get():
     result = none(DateTime)
 
-type
-  FnKind* = enum
-    fkAsync,
-    fkThread
-
-  FnBase* = ref object of RootObj ## Untyped Fn.
-
-  Fn*[TArg] = ref object of FnBase ## Typed Fn.
-  ## It wraps the function and its arg.
-  ##
-  ## Currently, Fn supports proc running asynchronously or in threads.
-    case kind*: FnKind
-    of fkAsync:
-      when TArg is void:
-        asyncFn: proc (): Future[void] {.nimcall.}
-      else:
-        asyncFn: proc (arg: TArg): Future[void] {.nimcall.}
-        asyncArg: TArg
-    of fkThread:
-      when TArg is void:
-        threadFn: proc () {.nimcall, gcsafe.}
-      else:
-        threadFn: proc (arg: TArg) {.nimcall, gcsafe.}
-        threadArg: TArg
-
-proc initThreadFn*(
-  fn: proc() {.thread, nimcall.},
-): Fn[void] =
-  Fn[void](kind: fkThread, threadFn: fn)
-
-proc initThreadFn*[TArg](
-  fn: proc(arg: TArg) {.thread, nimcall.},
-  arg: TArg,
-): Fn[TArg] =
-  Fn[TArg](kind: fkThread, threadFn: fn, threadArg: arg)
-
-proc initAsyncFn*(
-  fn: proc(): Future[void] {.nimcall.},
-): Fn[void] =
-  Fn[void](kind: fkAsync, asyncFn: fn)
-
-proc initAsyncFn*[TArg](
-  fn: proc(): Future[TArg] {.nimcall.},
-  arg: TArg,
-): Fn[TArg] =
-  Fn[TArg](kind: fkAsync, asyncFn: fn, asyncArg: arg)
-
-type
-  Job* = ref object of RootObj ## Untyped Job.
-    id: string # The unique identity of the job.
-    description: string # The description of the job.
-    beater: Beater # The schedule of the job.
-    f: FnBase # The runner of the job.
-    ignoreDue: bool # Whether to ignore due job executions.
-    maxDue: Duration # The max duration the job is allowed to due.
-    parallel: int # The maximum number of parallel running job executions.
-    fireTime: Option[DateTime] # The next scheduled run time.
-
-proc `beater=`(job: Job, beater: Beater) =
-  job.beater = beater
-
-type
-  JobCanceled = object of Exception
-
-  JobMaxInstancesReached = object of Exception
-
-type
-  Runner* = ref object of RootObj
-    jobNums: Table[string, int]
-    pendingFutures: seq[Future[void]]
-
-proc initRunner*(): Runner =
-  Runner(jobNums: initTable[string, int](), pendingFutures: @[])
-
-proc shutdown*(runner: Runner) =
-  for fut in runner.pendingFutures:
-    fut.fail(newException(JobCanceled, "runner is shutting down."))
-  runner.pendingFutures = @[]
-
-template keepNums*(runner: Runner, job: Job, body: untyped) =
-  if runner.jobNums[job.id] >= job.parallel:
-    raise newException(
-      JobMaxInstancesReached,
-      "id:" & job.id & ", max=" & job.parallel.intToStr
-    )
-  body
-  runner.jobNums[job.id] += 1
-
-proc submit*(runner: Runner, job: Job) {.async.} =
-  runner.keepNums(job):
-    echo("hello")
-
-#proc run*[TArg](runner: Fn[TArg]) =
-  #when TArg is void:
-    #createThread(runner.thread, runner.fn)
-  #else:
-    #createThread(runner.thread, runner.fn, runner.arg)
-
-#proc run*[TArg](runner: AsyncFn[TArg]) {.async.} =
-  #var fut = when TArg is void:
-    #fut = runner.fn()
-  #else:
-    #fut = runner.fn(runner.arg)
-  #runner.future = fut
-  #yield fut
-
-#proc running*[TArg](runner: ThreadFn[TArg]) =
-  #runner.thread.running
-
-#proc running*[TArg](runner: AsyncFn[TArg]) =
-  #not (runner.future.finished or runner.future.failed)
-
-type
-  TaskBase* = ref object of RootObj ## Untyped Task.
-    id: string # The unique identity of the task.
-    description: string # The description of the task.
-    beater: Beater # The schedule of the task.
-    f: FnBase # The runner of the task.
-    ignoreDue: bool # Whether to ignore due task executions.
-    maxDue: Duration # The max duration the task is allowed to due.
-    parallel: int # The maximum number of parallel running task executions.
-    fireTime: Option[DateTime] # The next scheduled run time.
-
-  ThreadedTask*[TArg] = ref object of TaskBase
-    thread: Thread[TArg] # deprecated
-    when TArg is void:
-      fn: proc () {.nimcall, gcsafe.}
-    else:
-      fn: proc (arg: TArg) {.nimcall, gcsafe.}
-      arg: TArg
-
-  AsyncTask*[TArg] = ref object of TaskBase
-    future: Future[void]
-    when TArg is void:
-      fn: proc (): Future[void] {.nimcall.}
-    else:
-      fn: proc (arg: TArg): Future[void] {.nimcall.}
-      arg: TArg
-
-proc newThreadedTask*(fn: proc() {.thread, nimcall.}, beater: Beater, id=""): ThreadedTask[void] =
-  var thread: Thread[void]
-  return ThreadedTask[void](
-    id: id,
-    thread: thread,
-    fn: fn,
-    beater: beater,
-    fireTime: none(DateTime),
-  )
-
-proc newThreadedTask*[TArg](
-  fn: proc(arg: TArg) {.thread, nimcall.},
-  arg: TArg,
-  beater: Beater,
-  id=""
-): ThreadedTask[TArg] =
-  var thread: Thread[TArg]
-  return ThreadedTask[TArg](
-    id: id,
-    thread: thread,
-    fn: fn,
-    arg: arg,
-    beater: beater,
-    fireTime: none(DateTime),
-  )
-
-proc newAsyncTask*(
-  fn: proc(): Future[void] {.nimcall.},
-  beater: Beater,
-  id=""
-): AsyncTask[void] =
-  var future = newFuture[void](id)
-  result = AsyncTask[void](
-    id: id,
-    future: future,
-    fn: fn,
-    beater: beater,
-    fireTime: none(DateTime),
-  )
-
-proc newAsyncTask*[TArg](
-  fn: proc(arg: TArg): Future[void] {.nimcall.},
-  arg: TArg,
-  beater: Beater,
-  id=""
-): AsyncTask[TArg] =
-  var future = newFuture[void](id)
-  result = AsyncTask[TArg](
-    id: id,
-    future: future,
-    fn: fn,
-    arg: arg,
-    beater: beater,
-    fireTime: none(DateTime),
-  )
-
-proc fire*(task: ThreadedTask[void]) =
-  createThread(task.thread, task.fn)
-
-proc fire*[TArg](task: ThreadedTask[TArg]) =
-  createThread(task.thread, task.fn, task.arg)
-
-proc fire*(task: AsyncTask[void]) {.async.} =
-  var fut = task.fn()
-  task.future = fut
-  yield fut
-  if fut.failed:
-    echo("AsyncTask " & task.id & " fire failed.")
-
-proc fire*[TArg](task: AsyncTask[TArg]) {.async.} =
-  var fut = task.fn(task.arg)
-  task.future = fut
-  yield fut
-  if fut.failed:
-    echo("AsyncTask " & task.id & " fire failed.")
-
-type
-  Scheduler* = ref object of RootObj ## Scheduler acts as an event loop and schedules all the tasks.
-
-type
-  AsyncScheduler* = ref object of Scheduler
-
-proc tick(since: DateTime) {.thread.} =
-  echo(now() - since)
-
-proc tick2() {.thread.} =
-  echo(now())
-
-proc atick() {.async.} =
-  await sleepAsync(1000)
-  echo("async tick")
-
-proc start(self: AsyncScheduler) {.async.} =
-  let beater = initBeater(interval=TimeInterval(seconds: 1))
-  let task = newThreadedTask[DateTime](tick, now(), beater=beater)
-  let atask = newAsyncTask(atick, beater=beater)
-  #let task = newThreadedTask(tick2, beater)
-  var prev = now()
+proc fire*(
+  self: Beater
+) {.async.} =
+  let prev = none(DateTime)
+  var nextRunTime = none(DateTime)
   while true:
-    asyncCheck atask.fire()
-    task.fire()
-    await sleepAsync(1000)
-    prev = now()
+    nextRunTime = self.fireTime(prev, now())
+    if nextRunTime.isNone: break
 
-#let sched = AsyncScheduler()
-#asyncCheck sched.start()
-#runForever()
+    case self.beaterProc.async
+    of true:
+      asyncCheck self.beaterProc.asyncProc()
+    of false:
+      var thread: Thread[void]
+      createThread(thread, self.beaterProc.syncProc)
+
+    let sleepDuration = max(initDuration(seconds = 1), nextRunTime.get()-now())
+    await sleepAsync(cast[int](sleepDuration.inMilliseconds))
+
+
+const SCHEDULED_JOBS = CacheTable"beater.jobs"
+
+type
+  Settings* = ref object
+    appName*: string
+    errorHandler*: proc (fut: Future[void]) {.closure, gcsafe.}
+
+proc newSettings(
+  appName = "",
+  errorHandler: proc (fut: Future[void]) {.closure, gcsafe.} = nil
+): Settings =
+  result = Settings(
+    appName: appName,
+    errorHandler: errorHandler
+  )
+
+template declareSettings(): typed {.dirty.} =
+  when not declaredInScope(settings):
+    var settings = newSettings()
+
+
+type
+  Scheduler* = ref object
+    settings: Settings
+    beaters: seq[Beater]
+    futures: seq[Future[void]]
+    errHandlers: Table[BeaterErrorKind, ErrorProc]
+
+proc initScheduler*(settings: Settings): Scheduler =
+  var beaters: seq[Beater] = @[]
+  var futures: seq[Future[void]] = @[]
+  var errHandlers = initTable[BeaterErrorKind, ErrorProc]()
+  result = Scheduler(
+    settings: settings,
+    beaters: beaters,
+    futures: futures,
+    errHandlers: errHandlers
+  )
+
+proc register*(self: Scheduler, beater: Beater) =
+  self.beaters.add(beater)
+
+proc register*(self: Scheduler, kind: BeaterErrorKind, errHandler: ErrorProc) =
+  self.errHandlers[kind] = errHandler
+
+proc idle*(self: Scheduler) {.async.} =
+  while true:
+    await sleepAsync(1000)
+
+proc handleError*(self: Scheduler, err: BeaterError) {.async.} =
+  if self.errHandlers.contains(err.kind):
+    let errHandler = self.errHandlers[err.kind]
+    asyncCheck errHandler(err)
+
+proc start*(self: Scheduler) {.async.} =
+  for beater in self.beaters:
+    let fut = fire(beater)
+    self.futures.add(fut)
+    asyncCheck fut
+
+  asyncCheck self.idle()
+
+proc serve*(self: Scheduler) =
+  asyncCheck start(self)
+  runForever()
+
+# TODO: DSL:
+# schedules:
+#
+#   cron("touch a file", "*/1 * * * *"):
+#     let code = execCmd("touch .touched")
+#     echo(beater.id, ", exitCode=", code)
+#
+#   interval("tick", seconds=2):
+#     echo("tick", now())
+#     await sleepAsync(1000)
+#     echo("tick", now())
+#
+proc scheduleEx(name: string, body: NimNode): NimNode =
+  SCHEDULED_JOBS[name] = body.copyNimTree
+
+  result = newStmtList()
+  result.add(
+    quote do:
+      declareSettings()
+  )
+
+proc syncTick() {.thread.} = echo("sync tick", now())
+proc asyncTick() {.async.} = echo("async tick", now())
+
+let beater = initBeater(
+  interval = TimeInterval(seconds: 2),
+  asyncProc = asyncTick,
+  endTime = some(now()+initDuration(seconds=5))
+)
+let scheduler = initScheduler(newSettings())
+scheduler.register(beater)
+scheduler.serve()
