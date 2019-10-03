@@ -232,53 +232,38 @@ proc waitFor*(self: Scheduler) =
 
 proc parseEvery(call: NimNode): tuple[
   async: bool,
-  id: string,
-  throttleNum: int,
+  id: NimNode,
+  throttleNum: NimNode,
   body: NimNode,
-  milliseconds: int,
-  seconds: int,
-  minutes: int,
-  hours: int,
-  days: int,
-  weeks: int,
-  months: int,
-  years: int,
+  milliseconds: NimNode,
+  seconds: NimNode,
+  minutes: NimNode,
+  hours: NimNode,
+  days: NimNode,
+  weeks: NimNode,
+  months: NimNode,
+  years: NimNode,
 ] =
   var async: bool = false
-  var id: string = ""
-  var throttleNum: int = 1
-  var years, months, weeks, days, hours, minutes, seconds, milliseconds: int = 0
+  var id = newLit(0)
+  var throttleNum = newLit(1)
+  var years, months, weeks, days, hours, minutes, seconds, milliseconds = newLit(0)
+  let body = call[call.len-1]
+  body.expectKind nnkStmtList
   for e in call[1 ..< call.len-1]:
     e.expectKind nnkExprEqExpr
     case e[0].`$`
-    of "async":
-      case e[1].`$`
-      of "true": async = true
-      else: async = false
-    of "id":
-      id = e[1].`$`
-    of "throttle":
-      throttleNum = cast[int](e[1].intVal)
-    of "years":
-      years = cast[int](e[1].intVal)
-    of "months":
-      months = cast[int](e[1].intVal)
-    of "weeks":
-      weeks = cast[int](e[1].intVal)
-    of "days":
-      days = cast[int](e[1].intVal)
-    of "hours":
-      hours = cast[int](e[1].intVal)
-    of "minutes":
-      minutes = cast[int](e[1].intVal)
-    of "seconds":
-      seconds = cast[int](e[1].intVal)
-    of "milliseconds":
-      milliseconds = cast[int](e[1].intVal)
-
-  let body = call[call.len-1]
-  body.expectKind nnkStmtList
-
+    of "async": async = e[1].`$` == "true"
+    of "id": id = e[1]
+    of "throttle": throttleNum = e[1]
+    of "years": years = e[1]
+    of "months": months = e[1]
+    of "weeks": weeks = e[1]
+    of "days": days = e[1]
+    of "hours": hours = e[1]
+    of "minutes": minutes = e[1]
+    of "seconds": seconds = e[1]
+    of "milliseconds": milliseconds = e[1]
   result = (
     async: async,
     id: id,
@@ -295,26 +280,28 @@ proc parseEvery(call: NimNode): tuple[
   )
 
 proc processEvery(call: NimNode): NimNode=
-  let res = parseEvery(call)
-  let procBody = res.body
-  let idNode = newLit(res.id)
-  let throttleNumNode = newLit(res.throttleNum)
-  # TODO: set interval
-  if res.async:
+  let (async, id, throttleNum, procBody, milliseconds, seconds,
+    minutes, hours, days, weeks, months, years) = parseEvery(call)
+  let interval = quote do:
+    initTimeInterval(
+      years=`years`, months=`months`, weeks=`weeks`, days=`days`, hours=`hours`,
+      minutes=`minutes`, seconds=`seconds`, milliseconds=`milliseconds`,
+    )
+  if async:
     result = quote do:
       initBeater(
-        id = `idNode`,
-        interval = TimeInterval(seconds: 1),
-        throttleNum = `throttleNumNode`,
+        id = `id`,
+        interval = `interval`,
+        throttleNum = `throttleNum`,
         asyncProc = proc() {.async.} =
           `procBody`
       )
   else:
     result = quote do:
       initBeater(
-        id = `idNode`,
-        interval = TimeInterval(seconds: 1),
-        throttleNum = `throttleNumNode`,
+        id = `id`,
+        interval = `interval`,
+        throttleNum = `throttleNum`,
         syncProc = proc() {.thread.} =
           `procBody`
       )
