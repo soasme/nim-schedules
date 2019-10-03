@@ -230,6 +230,102 @@ proc serve*(self: Scheduler) =
 proc waitFor*(self: Scheduler) =
   waitFor start(self)
 
+proc parseEvery(call: NimNode): tuple[
+  async: bool,
+  id: string,
+  throttleNum: int,
+  body: NimNode,
+  milliseconds: int,
+  seconds: int,
+  minutes: int,
+  hours: int,
+  days: int,
+  weeks: int,
+  months: int,
+  years: int,
+] =
+  var async: bool = false
+  var id: string = ""
+  var throttleNum: int = 1
+  var years, months, weeks, days, hours, minutes, seconds, milliseconds: int = 0
+  for e in call[1 ..< call.len-1]:
+    e.expectKind nnkExprEqExpr
+    case e[0].`$`
+    of "async":
+      case e[1].`$`
+      of "true": async = true
+      else: async = false
+    of "id":
+      id = e[1].`$`
+    of "throttle":
+      throttleNum = cast[int](e[1].intVal)
+    of "years":
+      years = cast[int](e[1].intVal)
+    of "months":
+      months = cast[int](e[1].intVal)
+    of "weeks":
+      weeks = cast[int](e[1].intVal)
+    of "days":
+      days = cast[int](e[1].intVal)
+    of "hours":
+      hours = cast[int](e[1].intVal)
+    of "minutes":
+      minutes = cast[int](e[1].intVal)
+    of "seconds":
+      seconds = cast[int](e[1].intVal)
+    of "milliseconds":
+      milliseconds = cast[int](e[1].intVal)
+
+  let body = call[call.len-1]
+  body.expectKind nnkStmtList
+
+  result = (
+    async: async,
+    id: id,
+    throttleNum: throttleNum,
+    body: body,
+    milliseconds: milliseconds,
+    seconds: seconds,
+    minutes: minutes,
+    hours: hours,
+    days: days,
+    weeks: weeks,
+    months: months,
+    years: years,
+  )
+
+proc processEvery(call: NimNode): NimNode=
+  let res = parseEvery(call)
+  let procBody = res.body
+  let idNode = newLit(res.id)
+  let throttleNumNode = newLit(res.throttleNum)
+  # TODO: set interval
+  if res.async:
+    result = quote do:
+      initBeater(
+        id = `idNode`,
+        interval = TimeInterval(seconds: 1),
+        throttleNum = `throttleNumNode`,
+        asyncProc = proc() {.async.} =
+          `procBody`
+      )
+  else:
+    result = quote do:
+      initBeater(
+        id = `idNode`,
+        interval = TimeInterval(seconds: 1),
+        throttleNum = `throttleNumNode`,
+        syncProc = proc() {.thread.} =
+          `procBody`
+      )
+
+proc processSchedule(call: NimNode): NimNode =
+  call.expectKind nnkCall
+  let cmdName = call[0].`$`
+  case cmdName
+  of "every": processEvery(call)
+  else: raise newException(Exception, "unknown cmd: " & cmdName)
+
 macro schedules*(body: untyped): untyped =
 
   body.expectKind nnkStmtList
@@ -243,61 +339,12 @@ macro schedules*(body: untyped): untyped =
     var `schedulerIdent` = initScheduler(newSettings())
   )
 
-  for i in body:
-    case i.kind
-    of nnkCall:
-      let cmdName = i[0].`$`
-      case cmdName
-      of "every":
-        # TODO: convert i[1] to interval 
-        i[1].expectKind nnkStrLit
-
-        # TODO: convert i[until last one] to args.
-        var async: bool = false
-        var id: string = ""
-        var throttleNum: int = 1
-        for e in i[2 ..< i.len-1]:
-          e.expectKind nnkExprEqExpr
-          case e[0].`$`
-          of "async":
-            case e[1].`$`
-            of "true": async = true
-            else: async = false
-          of "id":
-            id = e[1].`$`
-          of "throttle":
-            throttleNum = cast[int](e[1].intVal)
-
-        i[i.len-1].expectKind nnkStmtList
-        let procBody = i[i.len-1]
-        let idNode = newLit(id)
-        let throttleNumNode = newLit(throttleNum)
-
-        if async:
-          result.add(quote do:
-            `schedulerIdent`.register(
-              initBeater(
-                id = `idNode`,
-                interval = TimeInterval(seconds: 1),
-                throttleNum = `throttleNumNode`,
-                asyncProc = proc() {.async.} =
-                  `procBody`
-              )
-            )
-          )
-        else:
-          result.add(quote do:
-            `schedulerIdent`.register(
-              initBeater(
-                id = `idNode`,
-                interval = TimeInterval(seconds: 1),
-                throttleNum = `throttleNumNode`,
-                syncProc = proc() {.thread.} =
-                  `procBody`
-              )
-            )
-          )
-    else: discard
+  # register beaters
+  for call in body:
+    let beaterNode = processSchedule(call)
+    result.add(quote do:
+      `schedulerIdent`.register(`beaterNode`)
+    )
 
   # serve the scheduler
   result.add(quote do:
@@ -308,11 +355,11 @@ addHandler(logger)
 
 schedules:
 
-   every("1 second", id="tick", throttle=1, async=true):
+   every(seconds=1, id="tick", throttle=1, async=true):
      echo("async tick ", now())
      await sleepAsync(2000)
 
-   every("1 second", id="tick", throttle=1):
+   every(seconds=1, id="tick", throttle=1):
      echo("sync tick ", now())
 
    # TODO
