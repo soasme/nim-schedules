@@ -1,25 +1,36 @@
+## nim-schedules
+##
+## A Nim scheduler library that lets you kicks off jobs at regular intervals.
+##
 import macros, macrocache, options, times, asyncdispatch, tables, sequtils, logging
 
 var logger* = newConsoleLogger()
+## By default, the logger is attached to no handlers.
+## If you want to show logs, please call `addHandler(logger)`.
 
 type
   BeaterErrorKind* = enum
     BeaterInternalError
 
-  BeaterError* = object
+  BeaterError* = object ## Interval error. It's for nim-schedules internal use.
     case kind*: BeaterErrorKind
     of BeaterInternalError:
       exc: ref Exception
 
   ErrorProc* = proc (err: BeaterError): Future[void] {.gcsafe, closure.}
+  ## TODO: enable setting error handler
 
 proc initBeaterInternalError(exc: ref Exception): BeaterError =
   BeaterError(kind: BeaterInternalError, exc: exc)
 
 type
   BeaterProcAsync* = proc (): Future[void] {.gcsafe, closure.}
+  ## Async proc that is to schedule.
 
   BeaterProcSync* = proc (): void {.gcsafe, thread.}
+  ## Sync proc that is to schedule.
+  ## It should be marked with pragma `{.thread.}`.
+  ## It will be turned to BeaterProcAsync in nim-schedules internally.
 
   BeaterProc = object
     asyncProc: BeaterProcAsync
@@ -33,19 +44,25 @@ proc toAsync(p: BeaterProcSync): BeaterProcAsync =
         await sleepAsync(1000)
 
 type
-  Throttler* = ref object
+  Throttler* = ref object ## Throttle the total number of beats.
     num: int
     beats: seq[Future[void]]
 
-proc initThrottler(num: int = 1): Throttler =
+proc initThrottler*(num: int = 1): Throttler =
+  ## Initialize the total number of beats allowed to be scheduled.
+  ## By default, it's 1.
+  ## If it's greater than 1, then more than one beats can be scheduled simultaneously.
   var beats: seq[Future[void]] = @[]
   Throttler(num: num, beats: beats)
 
-proc throttled(self: Throttler): bool =
+proc throttled*(self: Throttler): bool =
+  ## Whether the throttler is allowed to schedule more beats.
   self.beats.keepItIf(not it.finished)
   result = self.beats.len >= self.num
 
-proc submit(self: Throttler, fut: Future[void]) =
+proc submit*(self: Throttler, fut: Future[void]) =
+  ## Submit a new future to the throttler.
+  ## WARNING: this function does not perform throttling check.
   self.beats.add(fut)
 
 type
@@ -146,6 +163,7 @@ proc fireTime*(
 proc fire*(
   self: Beater
 ) {.async.} =
+  ## Fire beats as async loop until no beats can be scheduled.
   var prev = none(DateTime)
   var nextRunTime = none(DateTime)
   while true:
@@ -153,7 +171,7 @@ proc fire*(
     if nextRunTime.isNone: break
     prev = nextRunTime
 
-    if not self.throttler.throttled: 
+    if not self.throttler.throttled:
       let fut = self.beaterProc.asyncProc()
       self.throttler.submit(fut)
       asyncCheck fut
@@ -191,6 +209,7 @@ type
     errHandlers: Table[BeaterErrorKind, ErrorProc]
 
 proc initScheduler*(settings: Settings): Scheduler =
+  ## Initialize a scheduler.
   var beaters: seq[Beater] = @[]
   var futures: seq[Future[void]] = @[]
   var errHandlers = initTable[BeaterErrorKind, ErrorProc]()
@@ -202,12 +221,16 @@ proc initScheduler*(settings: Settings): Scheduler =
   )
 
 proc register*(self: Scheduler, beater: Beater) =
+  ## Register a beater.
   self.beaters.add(beater)
 
 proc register*(self: Scheduler, kind: BeaterErrorKind, errHandler: ErrorProc) =
+  ## Register an error handler.
+  ## (Not used as of now)
   self.errHandlers[kind] = errHandler
 
 proc idle*(self: Scheduler) {.async.} =
+  ## Idle the scheduler. It prevents the scheduler from shutdown when no beats is running.
   while true:
     await sleepAsync(1000)
 
@@ -217,17 +240,20 @@ proc handleError*(self: Scheduler, err: BeaterError) {.async.} =
     asyncCheck errHandler(err)
 
 proc start*(self: Scheduler) {.async.} =
+  ## Start the scheduler.
   for beater in self.beaters:
     let fut = fire(beater)
     self.futures.add(fut)
     asyncCheck fut
 
 proc serve*(self: Scheduler) =
+  ## Serve the scheduler. It's a blocking function.
   asyncCheck idle(self)
   asyncCheck start(self)
   runForever()
 
 proc waitFor*(self: Scheduler) =
+  ## Run all beats til they're completed.
   waitFor start(self)
 
 proc parseEvery(call: NimNode): tuple[
@@ -314,40 +340,31 @@ proc processSchedule(call: NimNode): NimNode =
   else: raise newException(Exception, "unknown cmd: " & cmdName)
 
 macro schedules*(body: untyped): untyped =
-
+  ## Initialize a scheduler and register code blocks as beats.
   body.expectKind nnkStmtList
-
-  result = newStmtList()
-
   let schedulerIdent = newIdentNode("scheduler")
 
-  # initialize a scheduler
+  result = newStmtList()
   result.add(quote do:
     var `schedulerIdent` = initScheduler(newSettings())
   )
-
-  # register beaters
   for call in body:
     let beaterNode = processSchedule(call)
     result.add(quote do:
       `schedulerIdent`.register(`beaterNode`)
     )
-
-  # serve the scheduler
   result.add(quote do:
     `schedulerIdent`.serve()
   )
 
-addHandler(logger)
+#schedules:
 
-schedules:
+   #every(seconds=1, id="tick", throttle=1, async=true):
+     #echo("async tick ", now())
+     #await sleepAsync(2000)
 
-   every(seconds=1, id="tick", throttle=1, async=true):
-     echo("async tick ", now())
-     await sleepAsync(2000)
-
-   every(seconds=1, id="tick", throttle=1):
-     echo("sync tick ", now())
+   #every(seconds=1, id="tick", throttle=1):
+     #echo("sync tick ", now())
 
    # TODO
    #cron("*/1 * * * *", id="tick", throttle=2):
