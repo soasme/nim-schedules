@@ -1,6 +1,6 @@
 ## # nim-schedules
 ##
-## A Nim scheduler library that lets you kicks off jobs at regular intervals.
+## A Nim scheduler library that lets you kick off jobs at regular intervals.
 ##
 ## Example usage::
 ##
