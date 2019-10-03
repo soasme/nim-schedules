@@ -1,4 +1,6 @@
-import macros, macrocache, options, times, asyncdispatch, tables
+import macros, macrocache, options, times, asyncdispatch, tables, sequtils, logging
+
+var logger* = newConsoleLogger()
 
 type
   BeaterErrorKind* = enum
@@ -20,48 +22,69 @@ type
   BeaterProcSync* = proc (): void {.gcsafe, thread.}
 
   BeaterProc = object
-    case async: bool
-    of true:
-      asyncProc: BeaterProcAsync
-    of false:
-      syncProc: BeaterProcSync
+    asyncProc: BeaterProcAsync
 
+proc toAsync(p: BeaterProcSync): BeaterProcAsync =
+  result =
+    proc (): Future[void] {.gcsafe, closure, async.} =
+      var thread: Thread[void]
+      createThread(thread, p)
+      while thread.running:
+        await sleepAsync(1000)
+
+type
+  Throttler* = ref object
+    num: int
+    beats: seq[Future[void]]
+
+proc initThrottler(num: int = 1): Throttler =
+  var beats: seq[Future[void]] = @[]
+  Throttler(num: num, beats: beats)
+
+proc throttled(self: Throttler): bool =
+  self.beats.keepItIf(not it.finished)
+  result = self.beats.len >= self.num
+
+proc submit(self: Throttler, fut: Future[void]) =
+  self.beats.add(fut)
 
 type
   BeaterKind* {.pure.} = enum
     bkInterval
-    bkCron
+    #bkCron: TODO
 
   Beater* = ref object of RootObj ## Beater generates beats for the next runs.
+    id: string
     startTime: DateTime
     endTime: Option[DateTime]
     beaterProc: BeaterProc
+    throttler: Throttler
     case kind*: BeaterKind
     of bkInterval:
       interval*: TimeInterval
-    of bkCron:
-      expr*: string # TODO, parse `* * * * *`
 
 proc `$`*(beater: Beater): string =
   case beater.kind
   of bkInterval:
     "Beater(" & $beater.kind & "," & $beater.interval & ")"
-  of bkCron:
-    "Beater(" & $beater.kind & "," & beater.expr & ")"
 
 proc initBeater*(
   interval: TimeInterval,
   asyncProc: BeaterProcAsync,
   startTime: Option[DateTime] = none(DateTime),
   endTime: Option[DateTime] = none(DateTime),
+  id: string = "",
+  throttleNum: int = 1,
 ): Beater =
   ## Initialize a Beater, which kind is bkInterval.
   ##
   ## startTime and endTime are optional.
   Beater(
+    id: id,
     kind: bkInterval,
     interval: interval,
-    beaterProc: BeaterProc(async: true, asyncProc: asyncProc),
+    beaterProc: BeaterProc(asyncProc: asyncProc),
+    throttler: initThrottler(num=throttleNum),
     startTime: if startTime.isSome: startTime.get() else: now(),
     endTime: endTime,
   )
@@ -71,14 +94,18 @@ proc initBeater*(
   syncProc: BeaterProcSync,
   startTime: Option[DateTime] = none(DateTime),
   endTime: Option[DateTime] = none(DateTime),
+  id: string = "",
+  throttleNum: int = 1,
 ): Beater =
   ## Initialize a Beater, which kind is bkInterval.
   ##
   ## startTime and endTime are optional.
   Beater(
+    id: id,
     kind: bkInterval,
     interval: interval,
-    beaterProc: BeaterProc(async: false, syncProc: syncProc),
+    beaterProc: BeaterProc(asyncProc: syncProc.toAsync),
+    throttler: initThrottler(num=throttleNum),
     startTime: if startTime.isSome: startTime.get() else: now(),
     endTime: endTime,
   )
@@ -119,24 +146,23 @@ proc fireTime*(
 proc fire*(
   self: Beater
 ) {.async.} =
-  let prev = none(DateTime)
+  var prev = none(DateTime)
   var nextRunTime = none(DateTime)
   while true:
     nextRunTime = self.fireTime(prev, now())
     if nextRunTime.isNone: break
+    prev = nextRunTime
 
-    case self.beaterProc.async
-    of true:
-      asyncCheck self.beaterProc.asyncProc()
-    of false:
-      var thread: Thread[void]
-      createThread(thread, self.beaterProc.syncProc)
+    if not self.throttler.throttled: 
+      let fut = self.beaterProc.asyncProc()
+      self.throttler.submit(fut)
+      asyncCheck fut
+    else:
+      debug("\"", self.id, "\" is trottled. Maximum num is ", self.throttler.num, ".")
 
     let sleepDuration = max(initDuration(seconds = 1), nextRunTime.get()-now())
     await sleepAsync(cast[int](sleepDuration.inMilliseconds))
 
-
-const SCHEDULED_JOBS = CacheTable"beater.jobs"
 
 type
   Settings* = ref object
@@ -152,7 +178,7 @@ proc newSettings(
     errorHandler: errorHandler
   )
 
-template declareSettings(): typed {.dirty.} =
+template declareSettings(): void {.dirty.} =
   when not declaredInScope(settings):
     var settings = newSettings()
 
@@ -196,11 +222,14 @@ proc start*(self: Scheduler) {.async.} =
     self.futures.add(fut)
     asyncCheck fut
 
-  asyncCheck self.idle()
-
 proc serve*(self: Scheduler) =
+  asyncCheck idle(self)
   asyncCheck start(self)
   runForever()
+
+proc waitFor*(self: Scheduler) =
+  waitFor start(self)
+
 
 # TODO: DSL:
 # schedules:
@@ -214,23 +243,48 @@ proc serve*(self: Scheduler) =
 #     await sleepAsync(1000)
 #     echo("tick", now())
 #
-proc scheduleEx(name: string, body: NimNode): NimNode =
-  SCHEDULED_JOBS[name] = body.copyNimTree
 
+macro schedules*(body: untyped): untyped =
   result = newStmtList()
-  result.add(
-    quote do:
-      declareSettings()
+
+  let schedulerIdent = newIdentNode("scheduler")
+
+  # initialize a scheduler
+  result.add(quote do:
+    var `schedulerIdent` = initScheduler(newSettings())
   )
 
-proc syncTick() {.thread.} = echo("sync tick", now())
-proc asyncTick() {.async.} = echo("async tick", now())
+  result.add(quote do:
+    `schedulerIdent`.register(
+      initBeater(
+        id = "async tick",
+        interval = TimeInterval(seconds: 1),
+        throttleNum = 1,
+        asyncProc = proc() {.async.} =
+          echo("async tick", now())
+          await sleepAsync(2000)
+      )
+    )
+  )
 
-let beater = initBeater(
-  interval = TimeInterval(seconds: 2),
-  asyncProc = asyncTick,
-  endTime = some(now()+initDuration(seconds=5))
-)
-let scheduler = initScheduler(newSettings())
-scheduler.register(beater)
-scheduler.serve()
+  result.add(quote do:
+    `schedulerIdent`.register(
+      initBeater(
+        id = "sync tick",
+        interval = TimeInterval(seconds: 1),
+        throttleNum = 1,
+        syncProc = proc() {.thread.} =
+          echo("sync tick", now())
+      )
+    )
+  )
+
+  # serve the scheduler
+  result.add(quote do:
+    `schedulerIdent`.serve()
+  )
+
+addHandler(logger)
+
+schedules:
+  echo("hello world")
