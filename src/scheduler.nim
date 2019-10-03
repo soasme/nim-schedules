@@ -234,14 +234,13 @@ proc waitFor*(self: Scheduler) =
 # TODO: DSL:
 # schedules:
 #
-#   cron("touch a file", "*/1 * * * *"):
+#   cron("*/1 * * * *", id="touch a file"):
 #     let code = execCmd("touch .touched")
 #     echo(beater.id, ", exitCode=", code)
 #
-#   interval("tick", seconds=2):
+#   every("1 second", id="tick", throttle=2):
 #     echo("tick", now())
 #     await sleepAsync(1000)
-#     echo("tick", now())
 #
 
 macro schedules*(body: untyped): untyped =
