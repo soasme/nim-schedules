@@ -230,20 +230,10 @@ proc serve*(self: Scheduler) =
 proc waitFor*(self: Scheduler) =
   waitFor start(self)
 
-
-# TODO: DSL:
-# schedules:
-#
-#   cron("*/1 * * * *", id="touch a file"):
-#     let code = execCmd("touch .touched")
-#     echo(beater.id, ", exitCode=", code)
-#
-#   every("1 second", id="tick", throttle=2):
-#     echo("tick", now())
-#     await sleepAsync(1000)
-#
-
 macro schedules*(body: untyped): untyped =
+
+  body.expectKind nnkStmtList
+
   result = newStmtList()
 
   let schedulerIdent = newIdentNode("scheduler")
@@ -253,30 +243,61 @@ macro schedules*(body: untyped): untyped =
     var `schedulerIdent` = initScheduler(newSettings())
   )
 
-  result.add(quote do:
-    `schedulerIdent`.register(
-      initBeater(
-        id = "async tick",
-        interval = TimeInterval(seconds: 1),
-        throttleNum = 1,
-        asyncProc = proc() {.async.} =
-          echo("async tick", now())
-          await sleepAsync(2000)
-      )
-    )
-  )
+  for i in body:
+    case i.kind
+    of nnkCall:
+      let cmdName = i[0].`$`
+      case cmdName
+      of "every":
+        # TODO: convert i[1] to interval 
+        i[1].expectKind nnkStrLit
 
-  result.add(quote do:
-    `schedulerIdent`.register(
-      initBeater(
-        id = "sync tick",
-        interval = TimeInterval(seconds: 1),
-        throttleNum = 1,
-        syncProc = proc() {.thread.} =
-          echo("sync tick", now())
-      )
-    )
-  )
+        # TODO: convert i[until last one] to args.
+        var async: bool = false
+        var id: string = ""
+        var throttleNum: int = 1
+        for e in i[2 ..< i.len-1]:
+          e.expectKind nnkExprEqExpr
+          case e[0].`$`
+          of "async":
+            case e[1].`$`
+            of "true": async = true
+            else: async = false
+          of "id":
+            id = e[1].`$`
+          of "throttle":
+            throttleNum = cast[int](e[1].intVal)
+
+        i[i.len-1].expectKind nnkStmtList
+        let procBody = i[i.len-1]
+        let idNode = newLit(id)
+        let throttleNumNode = newLit(throttleNum)
+
+        if async:
+          result.add(quote do:
+            `schedulerIdent`.register(
+              initBeater(
+                id = `idNode`,
+                interval = TimeInterval(seconds: 1),
+                throttleNum = `throttleNumNode`,
+                asyncProc = proc() {.async.} =
+                  `procBody`
+              )
+            )
+          )
+        else:
+          result.add(quote do:
+            `schedulerIdent`.register(
+              initBeater(
+                id = `idNode`,
+                interval = TimeInterval(seconds: 1),
+                throttleNum = `throttleNumNode`,
+                syncProc = proc() {.thread.} =
+                  `procBody`
+              )
+            )
+          )
+    else: discard
 
   # serve the scheduler
   result.add(quote do:
@@ -286,4 +307,15 @@ macro schedules*(body: untyped): untyped =
 addHandler(logger)
 
 schedules:
-  echo("hello world")
+
+   every("1 second", id="tick", throttle=1, async=true):
+     echo("async tick ", now())
+     await sleepAsync(2000)
+
+   every("1 second", id="tick", throttle=1):
+     echo("sync tick ", now())
+
+   # TODO
+   #cron("*/1 * * * *", id="tick", throttle=2):
+     #echo("tick", now())
+     #await sleepAsync(1000)
