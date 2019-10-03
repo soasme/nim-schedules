@@ -1,11 +1,20 @@
-## nim-schedules
+## # nim-schedules
 ##
 ## A Nim scheduler library that lets you kicks off jobs at regular intervals.
 ##
+## Example usage::
+##
+##     schedules:
+##       every(seconds=1, id="tick", throttle=1, async=true):
+##         echo("async tick ", now())
+##         await sleepAsync(2000)
+##       every(seconds=1, id="tick", throttle=1):
+##         echo("sync tick ", now())
+##
+
 import macros, macrocache, options, times, asyncdispatch, tables, sequtils, logging
 
-var logger* = newConsoleLogger()
-## By default, the logger is attached to no handlers.
+var logger* = newConsoleLogger() ## By default, the logger is attached to no handlers.
 ## If you want to show logs, please call `addHandler(logger)`.
 
 type
@@ -357,16 +366,3 @@ macro schedules*(body: untyped): untyped =
     `schedulerIdent`.serve()
   )
 
-#schedules:
-
-   #every(seconds=1, id="tick", throttle=1, async=true):
-     #echo("async tick ", now())
-     #await sleepAsync(2000)
-
-   #every(seconds=1, id="tick", throttle=1):
-     #echo("sync tick ", now())
-
-   # TODO
-   #cron("*/1 * * * *", id="tick", throttle=2):
-     #echo("tick", now())
-     #await sleepAsync(1000)
