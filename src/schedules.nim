@@ -18,18 +18,15 @@ var logger* = newConsoleLogger() ## By default, the logger is attached to no han
 ## If you want to show logs, please call `addHandler(logger)`.
 
 type
-  BeaterProcAsync* = proc (): Future[void] {.gcsafe, closure.}
-  ## Async proc that is to schedule.
+  BeaterAsyncProc* = proc (): Future[void] {.gcsafe, closure.}
+  ## Async proc to be scheduled.
 
-  BeaterProcSync* = proc (): void {.gcsafe, thread.}
-  ## Sync proc that is to schedule.
+  BeaterThreadProc* = proc (): void {.gcsafe, thread.}
+  ## Thread proc to be scheduled.
   ## It should be marked with pragma `{.thread.}`.
-  ## It will be turned to BeaterProcAsync in nim-schedules internally.
+  ## It will be turned to BeaterAsyncProc in nim-schedules internally.
 
-  BeaterProc = object
-    asyncProc: BeaterProcAsync
-
-proc toAsync(p: BeaterProcSync): BeaterProcAsync =
+proc toAsync(p: BeaterThreadProc): BeaterAsyncProc =
   result =
     proc (): Future[void] {.gcsafe, closure, async.} =
       var thread: Thread[void]
@@ -68,7 +65,7 @@ type
     id: string
     startTime: DateTime
     endTime: Option[DateTime]
-    beaterProc: BeaterProcAsync
+    beaterProc: BeaterAsyncProc
     throttler: Throttler
     case kind*: BeaterKind
     of bkInterval:
@@ -81,7 +78,7 @@ proc `$`*(beater: Beater): string =
 
 proc initBeater*(
   interval: TimeInterval,
-  asyncProc: BeaterProcAsync,
+  asyncProc: BeaterAsyncProc,
   startTime: Option[DateTime] = none(DateTime),
   endTime: Option[DateTime] = none(DateTime),
   id: string = "",
@@ -102,7 +99,7 @@ proc initBeater*(
 
 proc initBeater*(
   interval: TimeInterval,
-  syncProc: BeaterProcSync,
+  threadProc: BeaterThreadProc,
   startTime: Option[DateTime] = none(DateTime),
   endTime: Option[DateTime] = none(DateTime),
   id: string = "",
@@ -115,7 +112,7 @@ proc initBeater*(
     id: id,
     kind: bkInterval,
     interval: interval,
-    beaterProc: syncProc.toAsync,
+    beaterProc: threadProc.toAsync,
     throttler: initThrottler(num=throttleNum),
     startTime: if startTime.isSome: startTime.get() else: now(),
     endTime: endTime,
@@ -304,7 +301,7 @@ proc processEvery(call: NimNode): NimNode=
         id = `id`,
         interval = `interval`,
         throttleNum = `throttleNum`,
-        syncProc = proc() {.thread.} =
+        threadProc = proc() {.thread.} =
           `procBody`
       )
 

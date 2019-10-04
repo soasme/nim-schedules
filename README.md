@@ -19,21 +19,53 @@ schedules:
 
   every(seconds=10, async=true):
     echo("tick", now())
-
-  every(seconds=10, async=true, throttle=2):
-    echo("tick", now())
     await sleepAsync(3000)
 ```
 
-2. Schedule thread proc every 10 seconds.
-1. Schedule async proc every 10 seconds.
-3. Schedule async proc every 10 seconds, at a maximum jobs of 2.
+1. Schedule thread proc every 10 seconds.
+2. Schedule async proc every 10 seconds.
+
+Note:
+
+* Don't forget adding `--threads:on` when compile your application.
+* The library schedules all jobs at a regular interval, but it'll be impacted
+  by your system load.
+
+## Advance Usages
+
+### Throttling
+
+By default, only one instance of the job is to be scheduled at the same time.
+If a job hasn't finished but the next run time has come, the next job will
+not be scheduled.
+
+You can allow more instances by specifying `throttle=`. For example:
+
+```
+import schedules, times, asyncdispatch, os
+
+schedules:
+  every(seconds=1, id="tick", throttle=2):
+    echo("tick", now())
+    sleep(2000)
+
+  every(seconds=1, id="async tick", async=true, throttle=2):
+    echo("async tick", now())
+    await sleepAsync(4000)
+```
 
 ## ChangeLog
 
 Released:
 
-* This project will be released before 8 Oct, 2019.
+* v0.1.0, [TBD](https://github.com/nim-lang/packages/pull/1196).
+
+TODO:
+
+* Support macro `cron()`.
+* Support custom scheduler.
+* Support setting `maxDue`.
+* Provide HTTP control API.
 
 ## License
 
