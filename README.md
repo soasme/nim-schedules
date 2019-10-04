@@ -63,10 +63,11 @@ Released:
 TODO:
 
 * Support macro `cron()`.
+* Support macro `at()`.
 * Support custom scheduler.
 * Support setting `maxDue`.
 * Provide HTTP control API.
 
 ## License
 
-Nim-markdown is based on MIT license.
+Nim-schedules is based on MIT license.
