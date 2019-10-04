@@ -18,21 +18,6 @@ var logger* = newConsoleLogger() ## By default, the logger is attached to no han
 ## If you want to show logs, please call `addHandler(logger)`.
 
 type
-  BeaterErrorKind* = enum
-    BeaterInternalError
-
-  BeaterError* = object ## Interval error. It's for nim-schedules internal use.
-    case kind*: BeaterErrorKind
-    of BeaterInternalError:
-      exc: ref Exception
-
-  ErrorProc* = proc (err: BeaterError): Future[void] {.gcsafe, closure.}
-  ## TODO: enable setting error handler
-
-proc initBeaterInternalError(exc: ref Exception): BeaterError =
-  BeaterError(kind: BeaterInternalError, exc: exc)
-
-type
   BeaterProcAsync* = proc (): Future[void] {.gcsafe, closure.}
   ## Async proc that is to schedule.
 
@@ -205,48 +190,30 @@ proc newSettings(
     errorHandler: errorHandler
   )
 
-template declareSettings(): void {.dirty.} =
-  when not declaredInScope(settings):
-    var settings = newSettings()
-
-
 type
   Scheduler* = ref object
     settings: Settings
     beaters: seq[Beater]
     futures: seq[Future[void]]
-    errHandlers: Table[BeaterErrorKind, ErrorProc]
 
 proc initScheduler*(settings: Settings): Scheduler =
   ## Initialize a scheduler.
   var beaters: seq[Beater] = @[]
   var futures: seq[Future[void]] = @[]
-  var errHandlers = initTable[BeaterErrorKind, ErrorProc]()
   result = Scheduler(
     settings: settings,
     beaters: beaters,
     futures: futures,
-    errHandlers: errHandlers
   )
 
 proc register*(self: Scheduler, beater: Beater) =
   ## Register a beater.
   self.beaters.add(beater)
 
-proc register*(self: Scheduler, kind: BeaterErrorKind, errHandler: ErrorProc) =
-  ## Register an error handler.
-  ## (Not used as of now)
-  self.errHandlers[kind] = errHandler
-
 proc idle*(self: Scheduler) {.async.} =
   ## Idle the scheduler. It prevents the scheduler from shutdown when no beats is running.
   while true:
     await sleepAsync(1000)
-
-proc handleError*(self: Scheduler, err: BeaterError) {.async.} =
-  if self.errHandlers.contains(err.kind):
-    let errHandler = self.errHandlers[err.kind]
-    asyncCheck errHandler(err)
 
 proc start*(self: Scheduler) {.async.} =
   ## Start the scheduler.
