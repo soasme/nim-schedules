@@ -68,7 +68,7 @@ type
     id: string
     startTime: DateTime
     endTime: Option[DateTime]
-    beaterProc: BeaterProc
+    beaterProc: BeaterProcAsync
     throttler: Throttler
     case kind*: BeaterKind
     of bkInterval:
@@ -94,7 +94,7 @@ proc initBeater*(
     id: id,
     kind: bkInterval,
     interval: interval,
-    beaterProc: BeaterProc(asyncProc: asyncProc),
+    beaterProc: asyncProc,
     throttler: initThrottler(num=throttleNum),
     startTime: if startTime.isSome: startTime.get() else: now(),
     endTime: endTime,
@@ -115,7 +115,7 @@ proc initBeater*(
     id: id,
     kind: bkInterval,
     interval: interval,
-    beaterProc: BeaterProc(asyncProc: syncProc.toAsync),
+    beaterProc: syncProc.toAsync,
     throttler: initThrottler(num=throttleNum),
     startTime: if startTime.isSome: startTime.get() else: now(),
     endTime: endTime,
@@ -166,7 +166,7 @@ proc fire*(
     prev = nextRunTime
 
     if not self.throttler.throttled:
-      let fut = self.beaterProc.asyncProc()
+      let fut = self.beaterProc()
       self.throttler.submit(fut)
       asyncCheck fut
     else:
@@ -247,7 +247,7 @@ proc parseEvery(call: NimNode): tuple[
   years: NimNode,
 ] =
   var async: bool = false
-  var id = newLit(0)
+  var id = newLit("")
   var throttleNum = newLit(1)
   var years, months, weeks, days, hours, minutes, seconds, milliseconds = newLit(0)
   let body = call[call.len-1]
@@ -282,14 +282,14 @@ proc parseEvery(call: NimNode): tuple[
   )
 
 proc processEvery(call: NimNode): NimNode=
-  let (async, id, throttleNum, procBody, milliseconds, seconds,
+  let (asyncProc, id, throttleNum, procBody, milliseconds, seconds,
     minutes, hours, days, weeks, months, years) = parseEvery(call)
   let interval = quote do:
     initTimeInterval(
       years=`years`, months=`months`, weeks=`weeks`, days=`days`, hours=`hours`,
       minutes=`minutes`, seconds=`seconds`, milliseconds=`milliseconds`,
     )
-  if async:
+  if asyncProc:
     result = quote do:
       initBeater(
         id = `id`,
