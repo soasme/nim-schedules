@@ -14,23 +14,19 @@ $ nimble install schedules
 import schedules, times, asyncdispatch
 
 schedules:
-  #1.
-  every(seconds=10, async=true):
-    echo("tick", now())
-    await sleepAsync(1000)
-
-  #2.
   every(seconds=10):
     echo("tick", now())
 
-  #3.
+  every(seconds=10, async=true):
+    echo("tick", now())
+
   every(seconds=10, async=true, throttle=2):
     echo("tick", now())
     await sleepAsync(3000)
 ```
 
-1. Schedule async proc every 10 seconds.
 2. Schedule thread proc every 10 seconds.
+1. Schedule async proc every 10 seconds.
 3. Schedule async proc every 10 seconds, at a maximum jobs of 2.
 
 ## ChangeLog
