@@ -14,10 +14,10 @@ $ nimble install schedules
 import schedules, times, asyncdispatch
 
 schedules:
-  every(seconds=10):
+  every(seconds=10, id="tick"):
     echo("tick", now())
 
-  every(seconds=10, async=true):
+  every(seconds=10, id="atick", async=true):
     echo("tick", now())
     await sleepAsync(3000)
 ```
@@ -27,7 +27,7 @@ schedules:
 
 Note:
 
-* Don't forget adding `--threads:on` when compile your application.
+* Don't forget adding `--threads:on` when compiling your application.
 * The library schedules all jobs at a regular interval, but it'll be impacted
   by your system load.
 
