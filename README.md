@@ -2,6 +2,12 @@
 
 A Nim scheduler library that lets you kick off jobs at regular intervals.
 
+Features:
+
+* Simple to use API for scheduling jobs.
+* Support scheduling both async and sync procs.
+* Lightweight and zero dependencies.
+
 ## Getting Started
 
 ```bash

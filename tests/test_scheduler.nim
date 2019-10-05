@@ -3,12 +3,18 @@ import unittest
 import os, times, options, asyncdispatch
 import schedules
 
-scheduler mySched:
-  every(seconds=1, id="sync tick"):
-    echo("sync tick, seconds=1 ", now())
 
-  every(seconds=1, id="async tick", async=true):
-    echo("async tick, seconds=1 ", now())
+test "endTime":
 
-when isMainModule:
-  mySched.serve()
+  scheduler testEndTime:
+    every(seconds=1, id="sync tick", endTime=now()+initDuration(seconds=2)):
+      echo("sync tick, seconds=1 ", now())
+
+    every(seconds=1, id="async tick", async=true, endTime=now()+initDuration(seconds=2)):
+      echo("async tick, seconds=1 ", now())
+
+  proc main(): Future[bool] {.async.} =
+    await testEndTime.start()
+    return true
+
+  check (waitFor(main()))

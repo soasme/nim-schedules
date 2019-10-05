@@ -242,10 +242,15 @@ proc parseEvery(call: NimNode): tuple[
   weeks: NimNode,
   months: NimNode,
   years: NimNode,
+  startTime: NimNode,
+  endTime: NimNode,
 ] =
+  echo(call.treeRepr)
   var async: bool = false
   var id = newLit("")
   var throttleNum = newLit(1)
+  var startTime = newCall(ident("none"), ident("DateTime"))
+  var endTime = newCall(ident("none"), ident("DateTime"))
   var years, months, weeks, days, hours, minutes, seconds, milliseconds = newLit(0)
   let body = call[call.len-1]
   body.expectKind nnkStmtList
@@ -263,6 +268,9 @@ proc parseEvery(call: NimNode): tuple[
     of "minutes": minutes = e[1]
     of "seconds": seconds = e[1]
     of "milliseconds": milliseconds = e[1]
+    of "startTime": startTime = newCall(ident("some"), e[1])
+    of "endTime": endTime = newCall(ident("some"), e[1])
+    else: macros.error("unexpected parameter for `every`: " & e[0].`$`, call)
   result = (
     async: async,
     id: id,
@@ -276,11 +284,13 @@ proc parseEvery(call: NimNode): tuple[
     weeks: weeks,
     months: months,
     years: years,
+    startTime: startTime,
+    endTime: endTime,
   )
 
 proc processEvery(call: NimNode): NimNode=
   let (asyncProc, id, throttleNum, procBody, milliseconds, seconds,
-    minutes, hours, days, weeks, months, years) = parseEvery(call)
+    minutes, hours, days, weeks, months, years, startTime, endTime) = parseEvery(call)
   let interval = quote do:
     initTimeInterval(
       years=`years`, months=`months`, weeks=`weeks`, days=`days`, hours=`hours`,
@@ -292,6 +302,8 @@ proc processEvery(call: NimNode): NimNode=
         id = `id`,
         interval = `interval`,
         throttleNum = `throttleNum`,
+        startTime = `startTime`,
+        endTime = `endTime`,
         asyncProc = proc() {.async.} =
           `procBody`
       )
@@ -301,6 +313,8 @@ proc processEvery(call: NimNode): NimNode=
         id = `id`,
         interval = `interval`,
         throttleNum = `throttleNum`,
+        startTime = `startTime`,
+        endTime = `endTime`,
         threadProc = proc() {.thread.} =
           `procBody`
       )
