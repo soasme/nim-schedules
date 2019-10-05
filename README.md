@@ -57,9 +57,10 @@ schedules:
 ### Customize Scheduler
 
 Sometimes, you want to run the scheduler in parallel with other libraries.
-You can also use macro `scheduler` to create your own scheduler and start it later.
+In this case, you can create your own scheduler by macro `scheduler` and
+start it later.
 
-Below is an example of running jester and nim-schedules together.
+Below is an example of co-exist jester and nim-schedules in one process.
 
 ```nim
 import times, asyncdispatch, schedules, jester
