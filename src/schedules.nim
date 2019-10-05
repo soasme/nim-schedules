@@ -330,10 +330,18 @@ proc schedulerEx(sched: NimNode, body: NimNode): NimNode =
     )
 
 macro scheduler*(sched: untyped, body: untyped): typed =
+  ## Initialize a scheduler and register code blocks as beats.
+  ##
+  ## You'll use it when you want to mix using nim-schedules
+  ## with some other libraries, such as jester, etc.
   result = schedulerEx(sched, body)
 
 macro schedules*(body: untyped): untyped =
-  ## Initialize a scheduler and register code blocks as beats.
+  ## Initialize a scheduler, register code blocks as beats,
+  ## and run it as a blocking application.
+  ##
+  ## You'll use it when the scheduled jobs are the only thing
+  ## your programm will need to handle.
   let ident = newIdentNode("scheduler")
   result = schedulerEx(ident, body)
   result.add(quote do:
