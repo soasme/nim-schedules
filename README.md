@@ -95,6 +95,27 @@ when isMainModule:
   main()
 ```
 
+### Set Start Time and End Time
+
+You can limit the schedules running in a designated range of time by specifying
+`startTime` and `endTime`.  For example,
+
+```nim
+import schedules, times, asyncdispatch, os
+
+scheduler demoSetRange:
+  every(
+    seconds=1,
+    id="tick",
+    startTime=initDateTime(2019, 1, 1),
+    endTime=now()+initDuration(seconds=10)
+  ):
+    echo("tick", now())
+
+when isMainModule:
+  waitFor demoSetRange.start()
+```
+
 ## ChangeLog
 
 Released:
@@ -106,7 +127,6 @@ TODO:
 * Support macro `cron()`.
 * Support macro `at()`.
 * Support setting `maxDue`.
-* Provide HTTP control API.
 
 ## License
 
