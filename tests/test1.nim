@@ -1,10 +1,3 @@
-# This is just an example to get you started. You may wish to put all of your
-# tests into a single file, or separate them into multiple `test1`, `test2`
-# etc. files (better names are recommended, just make sure the name starts with
-# the letter 't').
-#
-# To run these tests, simply execute `nimble test`.
-
 import unittest
 
 import os, times, options, asyncdispatch
@@ -21,9 +14,9 @@ schedules:
     echo("async sleep, seconds=1", now())
     sleep(3000)
 
-  every(seconds=1, id="async sleep", async=true, throttle=2):
+  every(seconds=2, id="async sleep", async=true, throttle=2):
     echo("async sleep, seconds=1", now())
-    await sleepAsync(3000)
+    await sleepAsync(4000)
 
 #test "IntervalBeater.$":
   #let beater = initBeater(TimeInterval(seconds: 1))

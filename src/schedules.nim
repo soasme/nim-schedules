@@ -312,21 +312,30 @@ proc processSchedule(call: NimNode): NimNode =
   of "every": processEvery(call)
   else: raise newException(Exception, "unknown cmd: " & cmdName)
 
-macro schedules*(body: untyped): untyped =
-  ## Initialize a scheduler and register code blocks as beats.
+proc schedulerEx(sched: NimNode, body: NimNode): NimNode =
+  if sched.kind != nnkIdent: macros.error(
+    "Need an indent after macro `router`.", sched
+  )
+
   body.expectKind nnkStmtList
-  let schedulerIdent = newIdentNode("scheduler")
 
   result = newStmtList()
   result.add(quote do:
-    var `schedulerIdent` = initScheduler(newSettings())
+    var `sched` = initScheduler(newSettings())
   )
   for call in body:
     let beaterNode = processSchedule(call)
     result.add(quote do:
-      `schedulerIdent`.register(`beaterNode`)
+      `sched`.register(`beaterNode`)
     )
-  result.add(quote do:
-    `schedulerIdent`.serve()
-  )
 
+macro scheduler*(sched: untyped, body: untyped): typed =
+  result = schedulerEx(sched, body)
+
+macro schedules*(body: untyped): untyped =
+  ## Initialize a scheduler and register code blocks as beats.
+  let ident = newIdentNode("scheduler")
+  result = schedulerEx(ident, body)
+  result.add(quote do:
+    `ident`.serve()
+  )

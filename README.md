@@ -41,7 +41,7 @@ not be scheduled.
 
 You can allow more instances by specifying `throttle=`. For example:
 
-```
+```nim
 import schedules, times, asyncdispatch, os
 
 schedules:
@@ -54,6 +54,40 @@ schedules:
     await sleepAsync(4000)
 ```
 
+### Customize Scheduler
+
+Sometimes, you want to run the scheduler in parallel with other libraries.
+You can also use macro `scheduler` to create your own scheduler and start it later.
+
+Below is an example of running jester and nim-schedules together.
+
+```nim
+import times, asyncdispatch, schedules, jester
+
+scheduler mySched:
+  every(seconds=1, id="sync tick"):
+    echo("sync tick, seconds=1 ", now())
+
+router myRouter:
+  get "/":
+    resp "It's alive!"
+
+proc main():
+  # start schedules
+  asyncCheck mySched.start()
+
+  # start jester
+  let port = paramStr(1).parseInt().Port
+  let settings = newSettings(port=port)
+  var jester = initJester(myrouter, settings=settings)
+
+  # run
+  jester.serve()
+
+when isMainModule:
+  main()
+```
+
 ## ChangeLog
 
 Released:
@@ -64,7 +98,6 @@ TODO:
 
 * Support macro `cron()`.
 * Support macro `at()`.
-* Support custom scheduler.
 * Support setting `maxDue`.
 * Provide HTTP control API.
 
