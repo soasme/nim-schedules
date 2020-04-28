@@ -249,8 +249,8 @@ proc parseEvery(call: NimNode): tuple[
   var async: bool = false
   var id = newLit("")
   var throttleNum = newLit(1)
-  var startTime = newCall(ident("none"), ident("DateTime"))
-  var endTime = newCall(ident("none"), ident("DateTime"))
+  var startTime = newCall(bindSym("none"), ident("DateTime"))
+  var endTime = newCall(bindSym("none"), ident("DateTime"))
   var years, months, weeks, days, hours, minutes, seconds, milliseconds = newLit(0)
   let body = call[call.len-1]
   body.expectKind nnkStmtList
@@ -268,8 +268,8 @@ proc parseEvery(call: NimNode): tuple[
     of "minutes": minutes = e[1]
     of "seconds": seconds = e[1]
     of "milliseconds": milliseconds = e[1]
-    of "startTime": startTime = newCall(ident("some"), e[1])
-    of "endTime": endTime = newCall(ident("some"), e[1])
+    of "startTime": startTime = newCall(bindSym("some"), e[1])
+    of "endTime": endTime = newCall(bindSym("some"), e[1])
     else: macros.error("unexpected parameter for `every`: " & e[0].`$`, call)
   result = (
     async: async,
