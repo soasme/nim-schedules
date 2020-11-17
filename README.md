@@ -120,7 +120,7 @@ when isMainModule:
 
 Released:
 
-* v0.1.0, [TBD](https://github.com/nim-lang/packages/pull/1196).
+* v0.1.0, initial release.
 
 TODO:
 
