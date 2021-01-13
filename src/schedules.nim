@@ -245,7 +245,7 @@ proc parseEvery(call: NimNode): tuple[
   startTime: NimNode,
   endTime: NimNode,
 ] =
-  echo(call.treeRepr)
+  # echo(call.treeRepr)
   var async: bool = false
   var id = newLit("")
   var throttleNum = newLit(1)
