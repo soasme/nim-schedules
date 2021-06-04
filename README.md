@@ -122,12 +122,6 @@ Released:
 
 * v0.1.0, initial release.
 
-TODO:
-
-* Support macro `cron()`.
-* Support macro `at()`.
-* Support setting `maxDue`.
-
 ## License
 
 Nim-schedules is based on MIT license.
