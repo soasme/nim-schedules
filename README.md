@@ -98,7 +98,9 @@ when isMainModule:
 ### Set Start Time and End Time
 
 You can limit the schedules running in a designated range of time by specifying
-`startTime` and `endTime`.  For example,
+`startTime` and `endTime`.
+
+For example,
 
 ```nim
 import schedules, times, asyncdispatch, os
@@ -116,10 +118,14 @@ when isMainModule:
   waitFor demoSetRange.start()
 ```
 
+Parameters `startTime` and `endTime` can be used independently. For example,
+you can set startTime only, or set endTime only.
+
 ## ChangeLog
 
 Released:
 
+* v0.1.1, update metadata.
 * v0.1.0, initial release.
 
 ## License
