@@ -8,6 +8,8 @@ Features:
 * Support scheduling both async and sync procs.
 * Lightweight and zero dependencies.
 
+
+
 ## Getting Started
 
 ```bash
@@ -17,6 +19,7 @@ $ nimble install schedules
 ## Usage
 
 ```nim
+# File: scheduleExample.nim
 import schedules, times, asyncdispatch
 
 schedules:
@@ -31,9 +34,15 @@ schedules:
 1. Schedule thread proc every 10 seconds.
 2. Schedule async proc every 10 seconds.
 
+Run:
+
+```bash
+nim c --threads:on -r scheduleExample.nim
+```
+
 Note:
 
-* Don't forget adding `--threads:on` when compiling your application.
+* Don't forget **`--threads:on`** when compiling your application.
 * The library schedules all jobs at a regular interval, but it'll be impacted
   by your system load.
 
