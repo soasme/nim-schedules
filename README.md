@@ -2,13 +2,13 @@
 
 A Nim scheduler library that lets you kick off jobs at regular intervals.
 
+Read the [documentation](https://www.soasme.com/nim-schedules/schedules.html).
+
 Features:
 
 * Simple to use API for scheduling jobs.
 * Support scheduling both async and sync procs.
 * Lightweight and zero dependencies.
-
-
 
 ## Getting Started
 
