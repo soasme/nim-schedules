@@ -162,6 +162,11 @@ proc fire*(
     if nextRunTime.isNone: break
     prev = nextRunTime
 
+    let sleepDuration = nextRuntime.get() - now()
+    let sleepMs = cast[int](sleepDuration.inMilliseconds)
+    if sleepMs > 0:
+      await sleepAsync(sleepMs)
+
     if not self.throttler.throttled:
       let fut = self.beaterProc()
       self.throttler.submit(fut)
@@ -169,8 +174,6 @@ proc fire*(
     else:
       debug("\"", self.id, "\" is trottled. Maximum num is ", self.throttler.num, ".")
 
-    let sleepDuration = max(initDuration(seconds = 1), nextRunTime.get()-now())
-    await sleepAsync(cast[int](sleepDuration.inMilliseconds))
 
 
 type
@@ -245,7 +248,6 @@ proc parseEvery(call: NimNode): tuple[
   startTime: NimNode,
   endTime: NimNode,
 ] =
-  # echo(call.treeRepr)
   var async: bool = false
   var id = newLit("")
   var throttleNum = newLit(1)
