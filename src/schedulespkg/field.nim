@@ -47,9 +47,6 @@ proc getValue*(field: Field, dt: DateTime): int =
   of fkMinute:      int(dt.minute)
   of fkSecond:      int(dt.second)
 
-proc getNextValue*(field: Field, dt: DateTime): Option[int] =
-  none(int)
-
 when isMainModule:
   let dt = now()
   var f = Field(kind: fkYear, expr: newAllExpr())

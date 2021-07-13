@@ -154,7 +154,7 @@ proc parseSeq(s: string, op: proc (s: string): Expr): Expr =
     newSeqExpr(tokens)
 
 let MINUTES_RANGE = 0 .. 59
-proc parseMinutes(s: string): Expr =
+proc parseMinutes*(s: string): Expr =
   parseSeq(toLowerAscii(s), proc (s: string): Expr =
     parseStep(s, MINUTES_RANGE, proc (s: string): Expr =
       attempt parseAll(s)
@@ -164,7 +164,7 @@ proc parseMinutes(s: string): Expr =
   )
 
 let HOURS_RANGE = 0 .. 23
-proc parseHours(s: string): Expr =
+proc parseHours*(s: string): Expr =
   parseSeq(toLowerAscii(s), proc (s: string): Expr =
     parseStep(s, HOURS_RANGE, proc (s: string): Expr =
       attempt parseAll(s)
@@ -174,7 +174,7 @@ proc parseHours(s: string): Expr =
   )
 
 let DAYS_RANGE = 1 .. 31
-proc parseDayOfMonths(s: string): Expr =
+proc parseDayOfMonths*(s: string): Expr =
   parseSeq(toLowerAscii(s), proc (s: string): Expr =
     parseStep(s, DAYS_RANGE, proc (s: string): Expr =
       attempt parseAll(s)
@@ -187,7 +187,7 @@ proc parseDayOfMonths(s: string): Expr =
   )
 
 let MONTHS_RANGE = 1 .. 12
-proc parseMonths(s: string): Expr =
+proc parseMonths*(s: string): Expr =
   parseSeq(toLowerAscii(s), proc (s: string): Expr =
     parseStep(s, MONTHS_RANGE, proc (s: string): Expr =
       attempt parseAll(s)
@@ -198,7 +198,7 @@ proc parseMonths(s: string): Expr =
   )
 
 let WEEKS_RANGE = 0 .. 6
-proc parseDayOfWeeks(s: string): Expr =
+proc parseDayOfWeeks*(s: string): Expr =
   parseSeq(toLowerAscii(s), proc (s: string): Expr =
     parseStep(s, WEEKS_RANGE, proc (s: string): Expr =
       attempt parseAll(s)
@@ -214,7 +214,7 @@ proc parseDayOfWeeks(s: string): Expr =
   )
 
 let YEARS_RANGE = 1970 .. 9999
-proc parseYears(s: string): Expr =
+proc parseYears*(s: string): Expr =
   parseSeq(toLowerAscii(s), proc (s: string): Expr =
     parseStep(s, YEARS_RANGE, proc (s: string): Expr =
       attempt parseAll(s)
