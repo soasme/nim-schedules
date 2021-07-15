@@ -153,6 +153,16 @@ proc parseSeq(s: string, op: proc (s: string): Expr): Expr =
   else:
     newSeqExpr(tokens)
 
+let SECONDS_RANGE = 0 .. 59
+proc parseSeconds*(s: string): Expr =
+  parseSeq(toLowerAscii(s), proc (s: string): Expr =
+    parseStep(s, SECONDS_RANGE, proc (s: string): Expr =
+      attempt parseAll(s)
+      attempt parseRange(s, SECONDS_RANGE, parseInt)
+      raise newException(ValueError, fmt"invalid second: {s}")
+    )
+  )
+
 let MINUTES_RANGE = 0 .. 59
 proc parseMinutes*(s: string): Expr =
   parseSeq(toLowerAscii(s), proc (s: string): Expr =

@@ -1,8 +1,3 @@
-# This is just an example to get you started. Users of your library will
-# import this file by writing ``import scheduler/submodule``. Feel free to rename or
-# remove this file altogether. You may create additional modules alongside
-# this file as required.
-
 from options import Option, some, none, get, isNone
 import times
 
@@ -10,10 +5,13 @@ import ./expr
 import ./parser
 import ./field
 
+
 proc getNext*(expr: Expr, field: Field, dt: DateTime): Option[int];
+
 
 proc getNextForLastDayOfMonth*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   some(getDaysInMonth(dt.month, dt.year))
+
 
 proc getNextForLastDayOfWeek*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   # TODO:
@@ -21,6 +19,7 @@ proc getNextForLastDayOfWeek*(expr: Expr, field: Field, dt: DateTime): Option[in
   #   get day of week for the last day in month
   #   -(7-n).
   none(int)
+
 
 # TODO: rename index to nthdayofweek
 proc getNextForIndex*(expr: Expr, field: Field, dt: DateTime): Option[int] =
@@ -36,6 +35,7 @@ proc getNextForIndex*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   else:
     none(int)
 
+
 proc getNextForRange*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   let fieldVal = field.getValue(dt)
   let fieldMin = max(field.minValue(dt), expr.rangeSlice.a)
@@ -47,6 +47,7 @@ proc getNextForRange*(expr: Expr, field: Field, dt: DateTime): Option[int] =
     some(nextVal)
   else:
     none(int)
+
 
 proc getNextForStepRange*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   let fieldVal = field.getValue(dt)
@@ -62,6 +63,7 @@ proc getNextForStepRange*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   else:
     none(int)
 
+
 proc getNextForAll*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   let fieldMin = field.minValue(dt)
   let fieldMax = field.maxValue(dt)
@@ -70,6 +72,7 @@ proc getNextForAll*(expr: Expr, field: Field, dt: DateTime): Option[int] =
     some(nextVal)
   else:
     none(int)
+
 
 proc getNextForStepAll*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   let fieldMin = field.minValue(dt)
@@ -82,12 +85,14 @@ proc getNextForStepAll*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   else:
     none(int)
 
+
 proc getNextForNum*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   let nextVal = field.getValue(dt)
   if nextVal <= expr.num:
     some(nextVal)
   else:
     none(int)
+
 
 proc getNextForSeq*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   result = none(int)
@@ -99,6 +104,7 @@ proc getNextForSeq*(expr: Expr, field: Field, dt: DateTime): Option[int] =
       result = next
       continue
     result = some(min(result.get, next.get))
+
 
 # TODO: getNextForAny
 # TODO: getNextForSeq
@@ -123,6 +129,45 @@ proc getNext*(expr: Expr, field: Field, dt: DateTime): Option[int] =
     of fkDayOfWeek: getNextForLastDayOfWeek(expr, field, dt)
     else: none(int)
   else: none(int)
+
+
+type
+  Cron* = object
+    start_time*: DateTime
+    end_time*: DateTime
+    year*: Field
+    month*: Field
+    day*: Field
+    week*: Field
+    day_of_week*: Field
+    hour*: Field
+    minute*: Field
+    second*: Field
+
+
+proc newCron*(
+  start_time: DateTime,
+  end_time: DateTime,
+  year: string = "*",
+  month: string = "*",
+  day: string = "*",
+  day_of_week: string = "*",
+  hour: string = "*",
+  minute: string = "*",
+  second: string = "*",
+): Cron =
+  Cron(
+    start_time: start_time,
+    end_time: end_time,
+    year: Field(kind: fkYear, expr: parseYears(year)),
+    month: Field(kind: fkMonth, expr: parseMonths(month)),
+    day: Field(kind: fkDayOfMonth, expr: parseDayOfMonths(day)),
+    day_of_week: Field(kind: fkDayOfWeek, expr: parseDayOfWeeks(day_of_week)),
+    hour: Field(kind: fkHour, expr: parseHours(hour)),
+    minute: Field(kind: fkMinute, expr: parseMinutes(minute)),
+    second: Field(kind: fkSecond, expr: parseSeconds(second)),
+  )
+
 
 when isMainModule:
   let dt = now()
