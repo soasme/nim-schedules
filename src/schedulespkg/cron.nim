@@ -1,4 +1,5 @@
 from options import Option, some, none, get, isNone
+import tables
 import times
 
 import ./expr
@@ -131,42 +132,105 @@ proc getNext*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   else: none(int)
 
 
+proc getNext*(field: Field, dt: DateTime): Option[int] = 
+  getNext(field.expr, field, dt)
+
+
 type
   Cron* = object
-    start_time*: DateTime
-    end_time*: DateTime
-    year*: Field
-    month*: Field
-    day*: Field
-    week*: Field
-    day_of_week*: Field
-    hour*: Field
-    minute*: Field
-    second*: Field
+    fields*: Table[FieldKind, Field]
 
 
 proc newCron*(
-  start_time: DateTime,
-  end_time: DateTime,
-  year: string = "*",
-  month: string = "*",
-  day: string = "*",
-  day_of_week: string = "*",
-  hour: string = "*",
-  minute: string = "*",
   second: string = "*",
+  minute: string = "*",
+  hour: string = "*",
+  day_of_month: string = "*",
+  day_of_week: string = "*",
+  month: string = "*",
+  year: string = "*",
 ): Cron =
   Cron(
-    start_time: start_time,
-    end_time: end_time,
-    year: Field(kind: fkYear, expr: parseYears(year)),
-    month: Field(kind: fkMonth, expr: parseMonths(month)),
-    day: Field(kind: fkDayOfMonth, expr: parseDayOfMonths(day)),
-    day_of_week: Field(kind: fkDayOfWeek, expr: parseDayOfWeeks(day_of_week)),
-    hour: Field(kind: fkHour, expr: parseHours(hour)),
-    minute: Field(kind: fkMinute, expr: parseMinutes(minute)),
-    second: Field(kind: fkSecond, expr: parseSeconds(second)),
+    fields: {
+      fkYear: Field(kind: fkYear, expr: parseYears(year)),
+      fkMonth: Field(kind: fkMonth, expr: parseMonths(month)),
+      fkDayOfMonth: Field(kind: fkDayOfMonth, expr: parseDayOfMonths(day_of_month)),
+      fkDayOfWeek: Field(kind: fkDayOfWeek, expr: parseDayOfWeeks(day_of_week)),
+      fkHour: Field(kind: fkHour, expr: parseHours(hour)),
+      fkMinute: Field(kind: fkMinute, expr: parseMinutes(minute)),
+      fkSecond: Field(kind: fkSecond, expr: parseSeconds(second)),
+    }.toTable
   )
+
+proc ceil(dt: DateTime): DateTime =
+  result = dt
+  if dt.nanosecond > 0:
+    result -= initTimeInterval(nanoseconds=dt.nanosecond)
+    result += initTimeInterval(seconds=1)
+
+proc setNext(cron: Cron, dt: DateTime, kind: FieldKind, value: int): DateTime =
+  let fields = newTable[FieldKind, int]()
+  for i in FieldKind.low.ord .. FieldKind.high.ord:
+    let field = cron.fields[FieldKind(i)]
+    fields[FieldKind(i)] = if i < kind.ord:
+      field.getValue(dt)
+    elif i > kind.ord:
+      field.minValue(dt)
+    else:
+      value
+  initDateTime(
+    MonthdayRange(fields[fkDayOfMonth]),
+    Month(fields[fkMonth]),
+    fields[fkYear],
+    fields[fkHour],
+    fields[fkMinute],
+    fields[fkSecond]
+  )
+
+proc incNext(cron: Cron, dt: DateTime, kind: var FieldKind): DateTime =
+  let field = cron.fields[kind]
+  var value = field.getValue(dt)
+  inc(value)
+  if value == field.maxValue(dt):
+    kind.inc
+  result = setNext(cron, dt, kind, value)
+
+proc getNext*(cron: Cron, dt: DateTime): Option[DateTime] =
+  var next = dt.ceil
+  var fk = 0
+
+  while fk >= FieldKind.low.ord and fk <= FieldKind.high.ord:
+    var fieldKind = FieldKind(fk)
+    let field = cron.fields[fieldKind]
+    var currentVal = field.getValue(dt)
+    var someNextVal = field.getNext(dt)
+
+    # Couldn't find next. Let's expand the search
+    # to a higher resolution.
+    if someNextVal.isNone:
+      fieldKind.dec
+      next = incNext(cron, next, fieldKind)
+      fk = fieldKind.ord
+      continue
+
+    # Found the next time.
+    # Let's narrow down the search.
+    let nextVal = someNextVal.get
+    if nextVal <= currentVal:
+      inc(fk)
+      continue
+
+    # Can simply setNext for DayOfWeek.
+    # Let's increment it.
+    if fieldKind == fkDayOfWeek:
+      inc(fk)
+      continue
+
+    # Set next with nextVal.
+    next = setNext(cron, next, fieldKind, nextVal)
+    inc(fk)
+
+  some(next)
 
 
 when isMainModule:
@@ -199,3 +263,12 @@ when isMainModule:
   e = parseHours("1-3,22-23,1-12/2")
   f = Field(kind: fkHour, expr: e)
   echo getNext(e, f, dt).get
+
+  var cron = newCron(minute="*/1")
+  echo cron.getNext(dt).get
+
+  cron = newCron(minute="*/2")
+  echo cron.getNext(dt).get
+
+  cron = newCron(hour="*/2")
+  echo cron.getNext(dt).get
