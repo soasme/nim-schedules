@@ -13,6 +13,7 @@
 ##
 
 import schedulespkg/scheduler
+import schedulespkg/cron/cron
 
 export logger
 export BeaterAsyncProc
@@ -38,3 +39,6 @@ export serve
 export waitFor
 export scheduler
 export schedules
+export Cron
+export newCron
+export getNext

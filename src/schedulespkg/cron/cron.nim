@@ -138,7 +138,7 @@ proc getNext*(field: Field, dt: DateTime): Option[int] =
 
 type
   Cron* = object
-    fields*: Table[FieldKind, Field]
+    fields: Table[FieldKind, Field]
 
 
 proc newCron*(
@@ -231,13 +231,12 @@ proc getNext*(cron: Cron, dt: DateTime): Option[DateTime] =
   while fk >= FieldKind.low.ord and fk <= FieldKind.high.ord:
     var fieldKind = FieldKind(fk)
     let field = cron.fields[fieldKind]
-    var currentVal = field.getValue(dt)
-    var someNextVal = field.getNext(dt)
+    var currentVal = field.getValue(next)
+    var someNextVal = field.getNext(next)
 
     # Couldn't find next. Let's expand the search
     # to a higher resolution.
     if someNextVal.isNone:
-      dec(fieldKind)
       next = incNext(cron, next, fieldKind)
       fk = fieldKind.ord
       continue
