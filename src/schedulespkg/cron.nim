@@ -162,38 +162,67 @@ proc newCron*(
     }.toTable
   )
 
+
 proc ceil(dt: DateTime): DateTime =
   result = dt
   if dt.nanosecond > 0:
     result -= initTimeInterval(nanoseconds=dt.nanosecond)
     result += initTimeInterval(seconds=1)
 
+
+proc initDateTime(values: ref Table[FieldKind, int]): DateTime =
+  initDateTime(
+    MonthdayRange(values[fkDayOfMonth]),
+    Month(values[fkMonth]),
+    values[fkYear],
+    values[fkHour],
+    values[fkMinute],
+    values[fkSecond],
+  )
+
+
 proc setNext(cron: Cron, dt: DateTime, kind: FieldKind, value: int): DateTime =
-  let fields = newTable[FieldKind, int]()
+  let values = newTable[FieldKind, int]()
   for i in FieldKind.low.ord .. FieldKind.high.ord:
     let field = cron.fields[FieldKind(i)]
-    fields[FieldKind(i)] = if i < kind.ord:
+    values[FieldKind(i)] = if i < kind.ord:
       field.getValue(dt)
     elif i > kind.ord:
       field.minValue(dt)
     else:
       value
-  initDateTime(
-    MonthdayRange(fields[fkDayOfMonth]),
-    Month(fields[fkMonth]),
-    fields[fkYear],
-    fields[fkHour],
-    fields[fkMinute],
-    fields[fkSecond]
-  )
+  initDateTime(values)
+
 
 proc incNext(cron: Cron, dt: DateTime, kind: var FieldKind): DateTime =
-  let field = cron.fields[kind]
-  var value = field.getValue(dt)
-  inc(value)
-  if value == field.maxValue(dt):
-    kind.inc
-  result = setNext(cron, dt, kind, value)
+  let values = newTable[FieldKind, int]()
+  var i = 0
+  while i >= FieldKind.low.ord and i <= FieldKind.high.ord:
+    let field = cron.fields[FieldKind(i)]
+    if field.kind == fkDayOfWeek:
+      if i == kind.ord:
+        dec(kind)
+        dec(i)
+      else:
+        inc(i)
+      continue
+    if i < kind.ord:
+      values[field.kind] = field.getValue(dt)
+      inc(i)
+    elif i > kind.ord:
+      values[field.kind] = field.minValue(dt)
+      inc(i)
+    else:
+      let value = field.getValue(dt)
+      let maxVal = field.maxValue(dt)
+      if value == maxVal:
+        dec(kind)
+        dec(i)
+      else:
+        values[field.kind] = value + 1
+        inc(i)
+  initDateTime(values)
+
 
 proc getNext*(cron: Cron, dt: DateTime): Option[DateTime] =
   var next = dt.ceil
@@ -208,7 +237,7 @@ proc getNext*(cron: Cron, dt: DateTime): Option[DateTime] =
     # Couldn't find next. Let's expand the search
     # to a higher resolution.
     if someNextVal.isNone:
-      fieldKind.dec
+      dec(fieldKind)
       next = incNext(cron, next, fieldKind)
       fk = fieldKind.ord
       continue
@@ -223,7 +252,8 @@ proc getNext*(cron: Cron, dt: DateTime): Option[DateTime] =
     # Can simply setNext for DayOfWeek.
     # Let's increment it.
     if fieldKind == fkDayOfWeek:
-      inc(fk)
+      next = incNext(cron, next, fieldKind)
+      fk = fieldKind.ord
       continue
 
     # Set next with nextVal.
@@ -240,7 +270,7 @@ when isMainModule:
   var f = Field(kind: fkDayOfMonth, expr: e)
   echo getNext(e, f, dt).get
 
-  e = parseDayOfWeeks("4#3")
+  e = parseDayOfWeeks("4#4")
   f = Field(kind: fkDayOfWeek, expr: e)
   echo getNext(e, f, dt).get
 
@@ -270,5 +300,14 @@ when isMainModule:
   cron = newCron(minute="*/2")
   echo cron.getNext(dt).get
 
+  cron = newCron(minute="*/3")
+  echo cron.getNext(dt).get
+
   cron = newCron(hour="*/2")
+  echo cron.getNext(dt).get
+
+  cron = newCron(hour="*/3")
+  echo cron.getNext(dt).get
+
+  cron = newCron(hour="*/4")
   echo cron.getNext(dt).get
