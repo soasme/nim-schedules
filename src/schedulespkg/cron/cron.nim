@@ -76,10 +76,11 @@ proc getNextForAll*(expr: Expr, field: Field, dt: DateTime): Option[int] =
 
 
 proc getNextForStepAll*(expr: Expr, field: Field, dt: DateTime): Option[int] =
+  let fieldVal = field.getValue(dt)
   let fieldMin = field.minValue(dt)
   let fieldMax = field.maxValue(dt)
-  var nextVal = max(field.getValue(dt), fieldMin)
-  let offset = expr.step - (nextVal - fieldMin) mod expr.step
+  var nextVal = max(fieldVal, fieldMin)
+  let offset = (expr.step - (fieldVal - fieldMin)) mod expr.step
   nextVal += offset
   if nextVal <= fieldMax:
     some(nextVal)
@@ -88,9 +89,9 @@ proc getNextForStepAll*(expr: Expr, field: Field, dt: DateTime): Option[int] =
 
 
 proc getNextForNum*(expr: Expr, field: Field, dt: DateTime): Option[int] =
-  let nextVal = field.getValue(dt)
-  if nextVal <= expr.num:
-    some(nextVal)
+  let fieldValue = field.getValue(dt)
+  if fieldValue <= expr.num:
+    some(expr.num)
   else:
     none(int)
 
@@ -185,12 +186,13 @@ proc setNext(cron: Cron, dt: DateTime, kind: FieldKind, value: int): DateTime =
   let values = newTable[FieldKind, int]()
   for i in FieldKind.low.ord .. FieldKind.high.ord:
     let field = cron.fields[FieldKind(i)]
-    values[FieldKind(i)] = if i < kind.ord:
-      field.getValue(dt)
-    elif i > kind.ord:
-      field.minValue(dt)
-    else:
-      value
+    if field.kind != fkDayOfWeek:
+      values[FieldKind(i)] = if i < kind.ord:
+        field.getValue(dt)
+      elif i > kind.ord:
+        field.minValue(dt)
+      else:
+        value
   initDateTime(values)
 
 
@@ -228,6 +230,7 @@ proc getNext*(cron: Cron, dt: DateTime): Option[DateTime] =
   var next = dt.ceil
   var fk = 0
 
+  # echo("start")
   while fk >= FieldKind.low.ord and fk <= FieldKind.high.ord:
     var fieldKind = FieldKind(fk)
     let field = cron.fields[fieldKind]
@@ -237,27 +240,38 @@ proc getNext*(cron: Cron, dt: DateTime): Option[DateTime] =
     # Couldn't find next. Let's expand the search
     # to a higher resolution.
     if someNextVal.isNone:
+      # echo(("increment", fieldKind, "for", next, "(not found)"))
+      dec(fieldKind)
       next = incNext(cron, next, fieldKind)
       fk = fieldKind.ord
+      # echo(("=> ", fieldKind, next))
       continue
 
     # Found the next time.
-    # Let's narrow down the search.
     let nextVal = someNextVal.get
+
+    # if nextVal is smaller, it's gotta be a time in the future.
+    # jump to next field and try get next from it.
     if nextVal <= currentVal:
       inc(fk)
+      # if fk >= FieldKind.low.ord and fk <= FieldKind.high.ord:
+      #  echo(("jump to", FieldKind(fk), "(future time)", nextVal))
       continue
 
     # Can simply setNext for DayOfWeek.
     # Let's increment it.
     if fieldKind == fkDayOfWeek:
+      # echo(("increment", fieldKind, "for", next, "(dayofweek)"))
       next = incNext(cron, next, fieldKind)
       fk = fieldKind.ord
       continue
 
     # Set next with nextVal.
+    # echo(("set", fieldKind, "to", nextVal, "for", next))
     next = setNext(cron, next, fieldKind, nextVal)
     inc(fk)
+    if FieldKind(fk) == fkDayOfWeek:
+      inc(fk)
 
   some(next)
 
