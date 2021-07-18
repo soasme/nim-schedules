@@ -149,6 +149,32 @@ test "23 0-20/2 * * *":
   )
 
 
+test "23 0/2 * * *":
+  let cron = newCron(
+    minute="23",
+    hour="0/2",
+  )
+  let dt = initDateTime(1, mJan, 2000, 13, 0, 0)
+
+  checkSome(
+    cron.getNext(dt),
+    initDateTime(1, mJan, 2000, 14, 23, 0)
+  )
+
+
+test "23 1/3 * * *":
+  let cron = newCron(
+    minute="23",
+    hour="1/3",
+  )
+  let dt = initDateTime(1, mJan, 2000, 13, 0, 0)
+
+  checkSome(
+    cron.getNext(dt),
+    initDateTime(1, mJan, 2000, 13, 23, 0)
+  )
+
+
 test "5 4 * * sun":
   let cron = newCron(
     minute="5",

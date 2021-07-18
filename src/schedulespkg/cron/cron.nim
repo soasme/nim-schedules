@@ -3,6 +3,7 @@ from algorithm import sorted
 import tables
 import times
 
+import ./expr
 import ./field
 import ./parser
 
@@ -56,13 +57,27 @@ proc getNextForStepRange*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   let fieldMax = min(field.maxValue(dt), expr.stepExpr.rangeSlice.b)
 
   var nextVal = max(fieldMin, fieldVal)
-  let offset = expr.step - (nextVal - fieldMin) mod expr.step
+  let offset = (expr.step - (nextVal - fieldMin)) mod expr.step
   nextVal += offset
 
   if nextVal <= fieldMax:
     some(nextVal)
   else:
     some(expr.stepExpr.rangeSlice.a)
+
+proc getNextForStepNum*(expr: Expr, field: Field, dt: DateTime): Option[int] =
+  let fieldVal = field.getValue(dt)
+  let fieldMin = max(field.minValue(dt), expr.stepExpr.num)
+  let fieldMax = field.maxValue(dt)
+
+  var nextVal = max(fieldMin, fieldVal)
+  let offset = (expr.step - (nextVal - fieldMin)) mod expr.step
+  nextVal += offset
+
+  if nextVal <= fieldMax:
+    some(nextVal)
+  else:
+    some(expr.stepExpr.num)
 
 
 proc getNextForAll*(expr: Expr, field: Field, dt: DateTime): Option[int] =
@@ -133,6 +148,7 @@ proc getNext*(expr: Expr, field: Field, dt: DateTime): Option[int] =
     case expr.stepExpr.kind
     of ekAll: getNextForStepAll(expr, field, dt)
     of ekRange: getNextForStepRange(expr, field, dt)
+    of ekNum: getNextForStepNum(expr, field, dt)
     else: none(int)
   of ekLast:
     case field.kind

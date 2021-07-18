@@ -1,7 +1,7 @@
 from strformat import fmt
 from strutils import split, parseInt, toLowerAscii
 from sequtils import map
-import ./field
+import ./expr
 
 template attempt(a: untyped): untyped =
   result = a
@@ -238,6 +238,7 @@ when isMainModule:
   echo parseMinutes("*/2")
   echo parseMinutes("*/59")
   echo parseMinutes("0")
+  echo parseMinutes("0/2")
   echo parseMinutes("0,1,2")
   #echo parseMinutes("0,1,2,")
   echo parseMinutes("0-59")
@@ -300,4 +301,4 @@ when isMainModule:
   echo parseYears("2020,2021")
   echo parseYears("2020-2021")
 
-  echo parseSeq("", parseNonSeq)
+  #echo parseSeq("", parseNonSeq)
