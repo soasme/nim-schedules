@@ -1,4 +1,5 @@
-from options import Option, some, none, get, isNone
+from options import Option, some, none, get, isNone, isSome
+from algorithm import sorted
 import tables
 import times
 
@@ -47,7 +48,7 @@ proc getNextForRange*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   if nextVal <= fieldMax:
     some(nextVal)
   else:
-    none(int)
+    some(expr.rangeSlice.a)
 
 
 proc getNextForStepRange*(expr: Expr, field: Field, dt: DateTime): Option[int] =
@@ -62,7 +63,7 @@ proc getNextForStepRange*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   if nextVal <= fieldMax:
     some(nextVal)
   else:
-    none(int)
+    some(expr.stepExpr.rangeSlice.a)
 
 
 proc getNextForAll*(expr: Expr, field: Field, dt: DateTime): Option[int] =
@@ -72,7 +73,7 @@ proc getNextForAll*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   if nextVal <= fieldMax:
     some(nextVal)
   else:
-    none(int)
+    some(fieldMin)
 
 
 proc getNextForStepAll*(expr: Expr, field: Field, dt: DateTime): Option[int] =
@@ -85,27 +86,31 @@ proc getNextForStepAll*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   if nextVal <= fieldMax:
     some(nextVal)
   else:
-    none(int)
+    some(fieldMin)
 
 
 proc getNextForNum*(expr: Expr, field: Field, dt: DateTime): Option[int] =
-  let fieldValue = field.getValue(dt)
-  if fieldValue <= expr.num:
-    some(expr.num)
-  else:
-    none(int)
+  some(expr.num)
 
 
 proc getNextForSeq*(expr: Expr, field: Field, dt: DateTime): Option[int] =
-  result = none(int)
+  var nexts: seq[int]
   for subExpr in expr.exprs:
     let next = getNext(subExpr, field, dt)
-    if next.isNone:
-      continue
-    if result.isNone:
-      result = next
-      continue
-    result = some(min(result.get, next.get))
+    if next.isSome:
+      nexts.add(next.get)
+
+  if nexts.len == 0:
+    return none(int)
+
+  nexts = sorted(nexts)
+
+  let fieldVal = field.getValue(dt)
+  for next in nexts:
+    if next >= fieldVal:
+      return some(next)
+
+  return some(nexts[0])
 
 
 # TODO: getNextForAny
@@ -115,15 +120,6 @@ proc getNextForSeq*(expr: Expr, field: Field, dt: DateTime): Option[int] =
 
 proc getMinIter*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   case expr.kind
-  of ekNum: some(expr.num)
-  of ekIndex: some(expr.index)
-  of ekAll: some(field.getValue(dt))
-  of ekRange: some(expr.rangeSlice.a)
-  of ekSeq:
-    var minVal = field.maxValue(dt)
-    for subExpr in expr.exprs:
-      minVal = min(minVal, subExpr.getMinIter(field, dt).get)
-    some(minVal)
   else: none(int)
 
 
@@ -196,130 +192,55 @@ proc initDateTime(values: ref Table[FieldKind, int]): DateTime =
   )
 
 proc getNext*(cron: Cron, dt: DateTime): Option[DateTime] =
+  # Given a cron object and a datetime, calculate the next fire time.
   var startTime = dt.ceil
   var offset: Duration
 
   let someMinuteOfNextFire = cron.fields[fkMinute].getNext(startTime)
-  offset = if someMinuteOfNextFire.isNone:
-    initDuration(
-      minutes=(
-        cron.fields[fkMinute].maxValue(startTime) -
-        cron.fields[fkMinute].getValue(startTime) +
-        cron.fields[fkMinute].expr.getMinIter(cron.fields[fkMinute], startTime).get
-      )
-    )
-  elif someMinuteOfNextFire.get < cron.fields[fkMinute].getValue(startTime):
-    initDuration(
-      minutes=(
-        cron.fields[fkMinute].maxValue(startTime) -
-        cron.fields[fkMinute].getValue(startTime) +
-        someMinuteOfNextFire.get
-      )
-    )
-  else:
-    initDuration(minutes=someMinuteOfNextFire.get - cron.fields[fkMinute].getValue(startTime))
+  var minutesOffset = someMinuteOfNextFire.get - cron.fields[fkMinute].getValue(startTime)
+  if minutesOffset < 0:
+    minutesOffset += cron.fields[fkMinute].maxValue(startTime)
 
-  # echo(("minute offset", offset))
-
-  startTime += offset
+  startTime += initDuration(minutes=minutesOffset)
 
   let someHourOfNextFire = cron.fields[fkHour].getNext(startTime)
-  offset = if someHourOfNextFire.isNone:
-    initDuration(
-      hours=(
-        cron.fields[fkHour].maxValue(startTime) -
-        cron.fields[fkHour].getValue(startTime) +
-        cron.fields[fkHour].expr.getMinIter(cron.fields[fkHour], startTime).get
-      )
-    )
-  elif someHourOfNextFire.get < cron.fields[fkHour].getValue(dt):
-    initDuration(
-      hours=(
-        cron.fields[fkHour].maxValue(startTime) -
-        cron.fields[fkHour].getValue(startTime) +
-        someHourOfNextFire.get
-      )
-    )
-  else:
-    initDuration(hours=someHourOfNextFire.get - cron.fields[fkHour].getValue(startTime))
+  var hoursOffset = someHourOfNextFire.get - cron.fields[fkHour].getValue(startTime)
+  if hoursOffset < 0:
+    hoursOffset += cron.fields[fkHour].maxValue(startTime)
 
-  # echo(("hour offset", offset))
-
-  startTime += offset
+  startTime += initDuration(hours=hoursOffset)
 
   let someDayOfMonthOfNextFire = cron.fields[fkDayOfMonth].getNext(startTime)
-  let dayOfMonthOffset = if someDayOfMonthOfNextFire.isNone:
-    initDuration(
-      days=(
-        cron.fields[fkDayOfMonth].maxValue(startTime) -
-        cron.fields[fkDayOfMonth].getValue(startTime) +
-        cron.fields[fkDayOfMonth].expr.getMinIter(cron.fields[fkDayOfMonth], startTime).get
-      )
-    )
-  elif someDayOfMonthOfNextFire.get < cron.fields[fkDayOfMonth].getValue(startTime):
-    initDuration(
-      days=(
-        cron.fields[fkDayOfMonth].maxValue(startTime) -
-        cron.fields[fkDayOfMonth].getValue(startTime) +
-        someDayOfMonthOfNextFire.get
-      )
-    )
-  else:
-    initDuration(days=someDayOfMonthOfNextFire.get - cron.fields[fkDayOfMonth].getValue(startTime))
+  var dayOfMonthOffset = someDayOfMonthOfNextFire.get - cron.fields[fkDayOfMonth].getValue(startTime)
+  if dayOfMonthOffset < 0:
+    dayOfMonthOffset += cron.fields[fkDayOfMonth].maxValue(startTime)
 
   let someDayOfWeekOfNextFire = cron.fields[fkDayOfWeek].getNext(startTime)
-  let dayOfWeekOffset = if someDayOfWeekOfNextFire.isNone:
-    initDuration(
-      days=(
-        cron.fields[fkDayOfWeek].maxValue(dt) -
-        cron.fields[fkDayOfWeek].getValue(dt) +
-        cron.fields[fkDayOfWeek].expr.getMinIter(cron.fields[fkDayOfWeek], startTime).get
-      )
-    )
-  elif someDayOfWeekOfNextFire.get < cron.fields[fkDayOfWeek].getValue(dt):
-    initDuration(
-      days=(
-        cron.fields[fkDayOfWeek].maxValue(dt) -
-        cron.fields[fkDayOfWeek].getValue(dt) +
-        someDayOfWeekOfNextFire.get
-      )
-    )
-  else:
-    initDuration(days=someDayOfWeekOfNextFire.get - cron.fields[fkDayOfWeek].getValue(dt))
+  var dayOfWeekOffset = someDayOfWeekOfNextFire.get - cron.fields[fkDayOfWeek].getValue(dt)
+  if dayOfWeekOffset < 0:
+    dayOfWeekOffset += cron.fields[fkDayOfWeek].maxValue(dt)
 
-  offset = if cron.fields[fkDayOfWeek].expr.kind == ekAll:
+  # The dom/dow situation is odd.
+  # When dom/dow are both set, cron run next dom AND next dow.
+  # Otherwise, run only next dom OR next dow.
+  #
+  # Quoted cron.c:
+  # > yes, it's bizarre. like many bizarre things, it's the standard.
+  let daysOffset = if cron.fields[fkDayOfWeek].expr.kind == ekAll:
     dayOfMonthOffset
   elif cron.fields[fkDayOfMonth].expr.kind == ekAll:
     dayOfWeekOffset
   else:
     min(dayOfMonthOffset, dayOfWeekOffset)
 
-  # echo(("day offset", offset, cron.fields[fkDayOfWeek].expr.kind, cron.fields[fkDayOfMonth].expr.kind))
-
-  startTime += offset
+  startTime += initDuration(days=daysOffset)
 
   let someMonthOfNextFire = cron.fields[fkMonth].getNext(startTime)
-  let monthOffset = if someMonthOfNextFire.isNone:
-    initTimeInterval(
-      months=(
-        cron.fields[fkMonth].maxValue(startTime) -
-        cron.fields[fkMonth].getValue(startTime) +
-        cron.fields[fkMonth].expr.getMinIter(cron.fields[fkMonth], startTime).get
-      )
-    )
-  elif someMonthOfNextFire.get < cron.fields[fkMonth].getValue(startTime):
-    initTimeInterval(
-      months=(
-        cron.fields[fkMonth].maxValue(dt) -
-        cron.fields[fkMonth].getValue(dt) +
-        someMonthOfNextFire.get
-      )
-    )
-  else:
-    initTimeInterval(months=someMonthOfNextFire.get - cron.fields[fkMonth].getValue(startTime))
+  var monthOffset = someMonthOfNextFire.get - cron.fields[fkMonth].getValue(startTime)
+  if monthOffset < 0:
+    monthOffset += cron.fields[fkMonth].maxValue(dt)
 
-  # echo(("month offset", monthOffset))
-  startTime += monthOffset
+  startTime += initTimeInterval(months=monthOffset)
 
   result = some(startTime)
 
