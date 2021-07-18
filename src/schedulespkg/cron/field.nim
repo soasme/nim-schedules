@@ -22,7 +22,7 @@ proc minValue*(field: Field, dt: DateTime): int =
   of fkYear:        1970
   of fkMonth:       1
   of fkDayOfMonth:  1
-  of fkDayOfWeek:   0
+  of fkDayOfWeek:   1
   of fkHour:        0
   of fkMinute:      0
   of fkSecond:      0
@@ -32,7 +32,7 @@ proc maxValue*(field: Field, dt: DateTime): int =
   of fkYear:        9999
   of fkMonth:       12
   of fkDayOfMonth:  getDaysInMonth(dt.month, dt.year)
-  of fkDayOfWeek:   6
+  of fkDayOfWeek:   7
   of fkHour:        23
   of fkMinute:      59
   of fkSecond:      59

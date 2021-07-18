@@ -4,8 +4,9 @@ import times
 import schedules
 
 template checkSome(v: untyped, o: untyped) =
-  check v.isSome
-  check v.get == o
+  let r = v
+  check r.isSome
+  check r.get == o
 
 test "* * 1-6 * *":
   let cron = newCron(month="1-6")
@@ -111,7 +112,7 @@ test "0 22 * * tue-sat":
   let cron = newCron(
     minute="0",
     hour="22",
-    day_of_week="1-5"
+    day_of_week="tue-sat"
   )
   let dt = initDateTime(1, mJan, 2000, 0, 0, 0) # sat
 
@@ -214,5 +215,19 @@ test "0 0 1,15 * Thu":
   let dt = initDateTime(1, mJan, 2000, 0, 0, 0)
   checkSome(
     cron.getNext(dt),
-    initDateTime(5, mJan, 2000, 0, 0, 0)
+    initDateTime(1, mJan, 2000, 0, 0, 0)
+  )
+
+test "0 0 1,15 * Thu":
+  let cron = newCron(
+    minute="0",
+    hour="0",
+    day_of_month="1,15",
+    day_of_week="Thu",
+  )
+
+  let dt = initDateTime(2, mJan, 2000, 0, 0, 0)
+  checkSome(
+    cron.getNext(dt),
+    initDateTime(6, mJan, 2000, 0, 0, 0)
   )
