@@ -53,37 +53,28 @@ type
     kind*: FieldKind
     expr*: Expr
 
+
 proc `$`*(expr: Expr): string
 
-proc newAllExpr*(): Expr =
-  Expr(kind: ekAll)
+proc newAllExpr*(): Expr = Expr(kind: ekAll)
 
-proc formatAllExpr(expr: Expr): string =
-  "*"
+proc formatAllExpr(expr: Expr): string = "*"
 
-proc newAnyExpr*(): Expr =
-  Expr(kind: ekAny)
+proc newAnyExpr*(): Expr = Expr(kind: ekAny)
 
-proc formatAnyExpr(expr: Expr): string =
-  "?"
+proc formatAnyExpr(expr: Expr): string = "?"
 
-proc newLastExpr*(): Expr =
-  Expr(kind: ekLast)
+proc newLastExpr*(): Expr = Expr(kind: ekLast)
 
-proc formatLastExpr(expr: Expr): string =
-  "L"
+proc formatLastExpr(expr: Expr): string = "L"
 
-proc newHashExpr*(): Expr =
-  Expr(kind: ekHash)
+proc newHashExpr*(): Expr = Expr(kind: ekHash)
 
-proc formatHashExpr(expr: Expr): string =
-  "H"
+proc formatHashExpr(expr: Expr): string = "H"
 
-proc newNumExpr*(num: int): Expr =
-  Expr(kind: ekNum, num: num)
+proc newNumExpr*(num: int): Expr = Expr(kind: ekNum, num: num)
 
-proc formatNumExpr(expr: Expr): string =
-  fmt"{expr.num}"
+proc formatNumExpr(expr: Expr): string = fmt"{expr.num}"
 
 proc newStepExpr*(expr: Expr, step: int): Expr =
   Expr(kind: ekStep, stepExpr: expr, step: step)
@@ -112,14 +103,11 @@ proc formatIndexExpr(expr: Expr): string =
 proc newNearestExpr*(nearest: int): Expr =
   Expr(kind: ekNearest, nearest: nearest)
 
-proc formatNearestExpr(expr: Expr): string =
-  fmt"{expr.nearest}W"
+proc formatNearestExpr(expr: Expr): string = fmt"{expr.nearest}W"
 
-proc newLastNExpr*(last: int): Expr =
-  Expr(kind: ekLastN, last: last)
+proc newLastNExpr*(last: int): Expr = Expr(kind: ekLastN, last: last)
 
-proc formatLastNExpr(expr: Expr): string =
-  fmt"{expr.last}L"
+proc formatLastNExpr(expr: Expr): string = fmt"{expr.last}L"
 
 proc `$`*(expr: Expr): string =
   case expr.kind
