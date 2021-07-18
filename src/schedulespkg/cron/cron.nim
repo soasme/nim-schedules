@@ -191,56 +191,43 @@ proc initDateTime(values: ref Table[FieldKind, int]): DateTime =
     values[fkSecond],
   )
 
+proc getInterval(cron: Cron, kind: FieldKind, dt: DateTime): int =
+  let someNext = cron.fields[kind].getNext(dt)
+  result = someNext.get - cron.fields[kind].getValue(dt)
+  if result < 0:
+    result += cron.fields[kind].maxValue(dt)
+
 proc getNext*(cron: Cron, dt: DateTime): Option[DateTime] =
   # Given a cron object and a datetime, calculate the next fire time.
-  var startTime = dt.ceil
-  var offset: Duration
-
-  let someMinuteOfNextFire = cron.fields[fkMinute].getNext(startTime)
-  var minutesOffset = someMinuteOfNextFire.get - cron.fields[fkMinute].getValue(startTime)
-  if minutesOffset < 0:
-    minutesOffset += cron.fields[fkMinute].maxValue(startTime)
-
-  startTime += initDuration(minutes=minutesOffset)
-
-  let someHourOfNextFire = cron.fields[fkHour].getNext(startTime)
-  var hoursOffset = someHourOfNextFire.get - cron.fields[fkHour].getValue(startTime)
-  if hoursOffset < 0:
-    hoursOffset += cron.fields[fkHour].maxValue(startTime)
-
-  startTime += initDuration(hours=hoursOffset)
-
-  let someDayOfMonthOfNextFire = cron.fields[fkDayOfMonth].getNext(startTime)
-  var dayOfMonthOffset = someDayOfMonthOfNextFire.get - cron.fields[fkDayOfMonth].getValue(startTime)
-  if dayOfMonthOffset < 0:
-    dayOfMonthOffset += cron.fields[fkDayOfMonth].maxValue(startTime)
-
-  let someDayOfWeekOfNextFire = cron.fields[fkDayOfWeek].getNext(startTime)
-  var dayOfWeekOffset = someDayOfWeekOfNextFire.get - cron.fields[fkDayOfWeek].getValue(dt)
-  if dayOfWeekOffset < 0:
-    dayOfWeekOffset += cron.fields[fkDayOfWeek].maxValue(dt)
-
+  #
   # The dom/dow situation is odd.
   # When dom/dow are both set, cron run next dom AND next dow.
   # Otherwise, run only next dom OR next dow.
   #
   # Quoted cron.c:
   # > yes, it's bizarre. like many bizarre things, it's the standard.
+  #
+  # For the rest of cron fields, let's keep adding intervals.
+  var startTime = dt.ceil
+
+  let minutesOffset = cron.getInterval(fkMinute, startTime)
+  startTime += minutesOffset.minutes
+
+  let hoursOffset = cron.getInterval(fkHour, startTime)
+  startTime += hoursOffset.hours
+
+  let dayOfMonthOffset = cron.getInterval(fkDayOfMonth, startTime)
+  let dayOfWeekOffset = cron.getInterval(fkDayOfWeek, startTime)
   let daysOffset = if cron.fields[fkDayOfWeek].expr.kind == ekAll:
     dayOfMonthOffset
   elif cron.fields[fkDayOfMonth].expr.kind == ekAll:
     dayOfWeekOffset
   else:
     min(dayOfMonthOffset, dayOfWeekOffset)
+  startTime += daysOffset.days
 
-  startTime += initDuration(days=daysOffset)
-
-  let someMonthOfNextFire = cron.fields[fkMonth].getNext(startTime)
-  var monthOffset = someMonthOfNextFire.get - cron.fields[fkMonth].getValue(startTime)
-  if monthOffset < 0:
-    monthOffset += cron.fields[fkMonth].maxValue(dt)
-
-  startTime += initTimeInterval(months=monthOffset)
+  let monthsOffset = cron.getInterval(fkMonth, startTime)
+  startTime += monthsOffset.months
 
   result = some(startTime)
 
