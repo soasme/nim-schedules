@@ -113,6 +113,20 @@ proc getNextForSeq*(expr: Expr, field: Field, dt: DateTime): Option[int] =
 # TODO: getNextForHash
 # TODO: getNextForNearest
 
+proc getMinIter*(expr: Expr, field: Field, dt: DateTime): Option[int] =
+  case expr.kind
+  of ekNum: some(expr.num)
+  of ekIndex: some(expr.index)
+  of ekAll: some(field.getValue(dt))
+  of ekRange: some(expr.rangeSlice.a)
+  of ekSeq:
+    var minVal = field.maxValue(dt)
+    for subExpr in expr.exprs:
+      minVal = min(minVal, subExpr.getMinIter(field, dt).get)
+    some(minVal)
+  else: none(int)
+
+
 proc getNext*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   case expr.kind
   of ekNum: getNextForNum(expr, field, dt)
@@ -191,7 +205,7 @@ proc getNext*(cron: Cron, dt: DateTime): Option[DateTime] =
       minutes=(
         cron.fields[fkMinute].maxValue(startTime) -
         cron.fields[fkMinute].getValue(startTime) +
-        cron.fields[fkMinute].minValue(startTime)
+        cron.fields[fkMinute].expr.getMinIter(cron.fields[fkMinute], startTime).get
       )
     )
   elif someMinuteOfNextFire.get < cron.fields[fkMinute].getValue(startTime):
@@ -215,7 +229,7 @@ proc getNext*(cron: Cron, dt: DateTime): Option[DateTime] =
       hours=(
         cron.fields[fkHour].maxValue(startTime) -
         cron.fields[fkHour].getValue(startTime) +
-        cron.fields[fkHour].minValue(startTime)
+        cron.fields[fkHour].expr.getMinIter(cron.fields[fkHour], startTime).get
       )
     )
   elif someHourOfNextFire.get < cron.fields[fkHour].getValue(dt):
@@ -239,7 +253,7 @@ proc getNext*(cron: Cron, dt: DateTime): Option[DateTime] =
       days=(
         cron.fields[fkDayOfMonth].maxValue(startTime) -
         cron.fields[fkDayOfMonth].getValue(startTime) +
-        cron.fields[fkDayOfMonth].minValue(startTime)
+        cron.fields[fkDayOfMonth].expr.getMinIter(cron.fields[fkDayOfMonth], startTime).get
       )
     )
   elif someDayOfMonthOfNextFire.get < cron.fields[fkDayOfMonth].getValue(startTime):
@@ -259,7 +273,7 @@ proc getNext*(cron: Cron, dt: DateTime): Option[DateTime] =
       days=(
         cron.fields[fkDayOfWeek].maxValue(dt) -
         cron.fields[fkDayOfWeek].getValue(dt) +
-        cron.fields[fkDayOfWeek].minValue(dt)
+        cron.fields[fkDayOfWeek].expr.getMinIter(cron.fields[fkDayOfWeek], startTime).get
       )
     )
   elif someDayOfWeekOfNextFire.get < cron.fields[fkDayOfWeek].getValue(dt):
@@ -290,7 +304,7 @@ proc getNext*(cron: Cron, dt: DateTime): Option[DateTime] =
       months=(
         cron.fields[fkMonth].maxValue(startTime) -
         cron.fields[fkMonth].getValue(startTime) +
-        cron.fields[fkMonth].minValue(startTime)
+        cron.fields[fkMonth].expr.getMinIter(cron.fields[fkMonth], startTime).get
       )
     )
   elif someMonthOfNextFire.get < cron.fields[fkMonth].getValue(startTime):
