@@ -210,6 +210,9 @@ proc getNext*(cron: Cron, dt: DateTime): Option[DateTime] =
   # For the rest of cron fields, let's keep adding intervals.
   var startTime = dt.ceil
 
+  let secondsOffset = cron.getInterval(fkSecond, startTime)
+  startTime += secondsOffset.seconds
+
   let minutesOffset = cron.getInterval(fkMinute, startTime)
   startTime += minutesOffset.minutes
 
@@ -228,6 +231,9 @@ proc getNext*(cron: Cron, dt: DateTime): Option[DateTime] =
 
   let monthsOffset = cron.getInterval(fkMonth, startTime)
   startTime += monthsOffset.months
+
+  let yearsOffset = cron.getInterval(fkYear, startTime)
+  startTime += yearsOffset.years
 
   result = some(startTime)
 
