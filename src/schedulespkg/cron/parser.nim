@@ -1,7 +1,7 @@
 from strformat import fmt
 from strutils import split, parseInt, toLowerAscii
 from sequtils import map
-import ./expr
+import ./field
 
 template attempt(a: untyped): untyped =
   result = a

@@ -3,9 +3,8 @@ from algorithm import sorted
 import tables
 import times
 
-import ./expr
-import ./parser
 import ./field
+import ./parser
 
 
 proc getNext*(expr: Expr, field: Field, dt: DateTime): Option[int];
