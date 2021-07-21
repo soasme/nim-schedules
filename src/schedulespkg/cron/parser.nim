@@ -226,7 +226,7 @@ proc parseDayOfWeeks*(s: string): Expr =
 let YEARS_RANGE = 1970 .. 9999
 proc parseYears*(s: string): Expr =
   parseSeq(toLowerAscii(s), proc (s: string): Expr =
-    parseStep(s, YEARS_RANGE, proc (s: string): Expr =
+    parseStep(s, 1 .. 100, proc (s: string): Expr =
       attempt parseAll(s)
       attempt parseRange(s, YEARS_RANGE, parseInt)
       raise newException(ValueError, fmt"invalid year: {s}")

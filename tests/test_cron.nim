@@ -3,189 +3,119 @@ import options
 import times
 import schedules
 
-template checkSome(v: untyped, o: untyped) =
-  let r = v
-  check r.isSome
-  check r.get == o
+template checkCron(c: untyped, start: string, expect: string) =
+  let cron = c
+  let dt = parse(start, "yyyy-MM-dd HH:mm:ss")
+  let v = cron.getNext(dt)
+  check v.isSome
+  check v.get == parse(expect, "yyyy-MM-dd HH:mm:ss")
+
 
 test "* * 1-6 * *":
   let cron = newCron(month="1-6")
-  let dt = initDateTime(1, mDec, 1999, 0, 0, 0)
-
-  checkSome(
-    cron.getNext(dt),
-    initDateTime(1, mJan, 2000, 0, 0, 0)
+  cron.checkCron(
+    "1999-12-01 00:00:00",
+    "2000-01-01 00:00:00"
   )
+
 
 test "* * jan-jun * *":
   let cron = newCron(month="jan-jun")
-  let dt = initDateTime(1, mDec, 1999, 0, 0, 0)
-
-  checkSome(
-    cron.getNext(dt),
-    initDateTime(1, mJan, 2000, 0, 0, 0)
+  cron.checkCron(
+    "1999-12-01 00:00:00",
+    "2000-01-01 00:00:00"
   )
 
 
 test "* * 10-13 1-6 *":
-  let cron = newCron(
-    month="1-6",
-    day_of_month="10-13",
-  )
-  let dt = initDateTime(1, mDec, 1999, 0, 0, 0)
-
-  checkSome(
-    cron.getNext(dt),
-    initDateTime(10, mJan, 2000, 0, 0, 0)
+  let cron = newCron(month="1-6", day_of_month="10-13")
+  cron.checkCron(
+    "1999-12-01 00:00:00",
+    "2000-01-10 00:00:00"
   )
 
 
 test "* 8-10 * feb-dec * 2000":
-  let cron = newCron(
-    hour="8-10",
-    month="feb-dec",
-    year="2000",
-  )
-  let dt = initDateTime(1, mJan, 2000, 0, 0, 0)
-
-  checkSome(
-    cron.getNext(dt),
-    initDateTime(1, mFeb, 2000, 8, 0, 0)
+  let cron = newCron(hour="8-10", month="feb-dec", year="2000")
+  cron.checkCron(
+    "2000-01-01 00:00:00",
+    "2000-02-01 08:00:00",
   )
 
 
 test "5 4 * * *":
-  let cron = newCron(
-    minute="5",
-    hour="4",
-  )
-  let dt = initDateTime(1, mJan, 2000, 0, 0, 0)
-
-  checkSome(
-    cron.getNext(dt),
-    initDateTime(1, mJan, 2000, 4, 5, 0)
+  let cron = newCron(minute="5", hour="4")
+  cron.checkCron(
+    "2020-01-01 00:00:00",
+    "2020-01-01 04:05:00",
   )
 
 
 test "5 0 * 8 *":
-  let cron = newCron(
-    minute="5",
-    hour="0",
-    month="8",
-  )
-  let dt = initDateTime(1, mJan, 2000, 0, 0, 0)
-
-  checkSome(
-    cron.getNext(dt),
-    initDateTime(1, mAug, 2000, 0, 5, 0)
+  let cron = newCron(minute="5", hour="0", month="8")
+  cron.checkCron(
+    "2000-01-01 00:00:00",
+    "2000-08-01 00:05:00"
   )
 
 
 test "15 14 1 * *":
-  let cron = newCron(
-    minute="15",
-    hour="14",
-    day_of_month="1",
-  )
-  let dt = initDateTime(1, mJan, 2000, 14, 15, 0)
-
-  checkSome(
-    cron.getNext(dt),
-    initDateTime(1, mJan, 2000, 14, 15, 0)
+  let cron = newCron(minute="15", hour="14", day_of_month="1")
+  cron.checkCron(
+    "2000-01-01 14:15:00",
+    "2000-01-01 14:15:00"
   )
 
 
 test "0 22 * * 1-5":
-  let cron = newCron(
-    minute="0",
-    hour="22",
-    day_of_week="1-5"
+  let cron = newCron(minute="0", hour="22", day_of_week="1-5")
+  cron.checkCron(
+    "2000-01-01 00:00:00",
+    "2000-01-01 22:00:00",
   )
-  let dt = initDateTime(1, mJan, 2000, 0, 0, 0) # sat
 
-  checkSome(
-    cron.getNext(dt),
-    initDateTime(1, mJan, 2000, 22, 0, 0)
-  )
 
 test "0 22 * * tue-sat":
-  let cron = newCron(
-    minute="0",
-    hour="22",
-    day_of_week="tue-sat"
-  )
-  let dt = initDateTime(1, mJan, 2000, 0, 0, 0) # sat
-
-  checkSome(
-    cron.getNext(dt),
-    initDateTime(1, mJan, 2000, 22, 0, 0)
+  let cron = newCron(minute="0", hour="22", day_of_week="tue-sat")
+  cron.checkCron(
+    "2000-01-01 00:00:00",
+    "2000-01-01 22:00:00",
   )
 
 
 test "0 22 * * tue-thu":
-  let cron = newCron(
-    minute="0",
-    hour="22",
-    day_of_week="tue-thu"
-  )
-  let dt = initDateTime(1, mJan, 2000, 0, 0, 0)
-
-  checkSome(
-    cron.getNext(dt),
-    initDateTime(4, mJan, 2000, 22, 0, 0)
+  let cron = newCron(minute="0", hour="22", day_of_week="tue-thu")
+  cron.checkCron(
+    "2000-01-01 00:00:00",
+    "2000-01-04 22:00:00",
   )
 
 
 test "23 0-20/2 * * *":
-  let cron = newCron(
-    minute="23",
-    hour="0-20/2",
+  let cron = newCron(minute="23", hour="0-20/2")
+  cron.checkCron(
+    "2000-01-01 13:00:00",
+    "2000-01-01 14:23:00",
   )
-  let dt = initDateTime(1, mJan, 2000, 13, 0, 0)
-
-  checkSome(
-    cron.getNext(dt),
-    initDateTime(1, mJan, 2000, 14, 23, 0)
-  )
-
-
-test "23 0/2 * * *":
-  let cron = newCron(
-    minute="23",
-    hour="0/2",
-  )
-  let dt = initDateTime(1, mJan, 2000, 13, 0, 0)
-
-  checkSome(
-    cron.getNext(dt),
-    initDateTime(1, mJan, 2000, 14, 23, 0)
+  cron.checkCron(
+    "2000-01-01 13:00:00",
+    "2000-01-01 14:23:00",
   )
 
 
 test "23 1/3 * * *":
-  let cron = newCron(
-    minute="23",
-    hour="1/3",
-  )
-  let dt = initDateTime(1, mJan, 2000, 13, 0, 0)
-
-  checkSome(
-    cron.getNext(dt),
-    initDateTime(1, mJan, 2000, 13, 23, 0)
+  let cron = newCron(minute="23", hour="1/3")
+  cron.checkCron(
+    "2000-01-01 13:00:00",
+    "2000-01-01 13:23:00",
   )
 
 
 test "5 4 * * sun":
-  let cron = newCron(
-    minute="5",
-    hour="4",
-    day_of_week="sun",
-  )
-  let dt = initDateTime(1, mJan, 2000, 0, 0, 0)
-
-  checkSome(
-    cron.getNext(dt),
-    initDateTime(2, mJan, 2000, 4, 5, 0)
+  let cron = newCron(minute="5", hour="4", day_of_week="sun")
+  cron.checkCron(
+    "2000-01-01 00:00:00",
+    "2000-01-02 04:05:00",
   )
 
 
@@ -197,22 +127,17 @@ test "0 0,12 1 */2 *":
     month="*/2",
   )
 
-  let dt = initDateTime(1, mJan, 2000, 0, 0, 0)
-  checkSome(
-    cron.getNext(dt),
-    initDateTime(1, mJan, 2000, 0, 0, 0)
+  cron.checkCron(
+    "2000-01-01 00:00:00",
+    "2000-01-01 00:00:00",
   )
-
-  let dt2 = initDateTime(1, mJan, 2000, 1, 0, 0)
-  checkSome(
-    cron.getNext(dt2),
-    initDateTime(1, mJan, 2000, 12, 0, 0)
+  cron.checkCron(
+    "2000-01-01 01:00:00",
+    "2000-01-01 12:00:00",
   )
-
-  let dt3 = initDateTime(2, mJan, 2000, 0, 0, 0)
-  checkSome(
-    cron.getNext(dt3),
-    initDateTime(1, mMar, 2000, 0, 0, 0)
+  cron.checkCron(
+    "2000-01-02 00:00:00",
+    "2000-03-01 00:00:00",
   )
 
 
@@ -222,11 +147,9 @@ test "0 4 8-14 * *":
     hour="4",
     day_of_month="8-14",
   )
-  let dt = initDateTime(1, mJan, 2000, 0, 0, 0)
-
-  checkSome(
-    cron.getNext(dt),
-    initDateTime(8, mJan, 2000, 4, 0, 0)
+  cron.checkCron(
+    "2000-01-01 00:00:00",
+    "2000-01-08 04:00:00"
   )
 
 
@@ -237,23 +160,27 @@ test "0 0 1,15 * Thu":
     day_of_month="1,15",
     day_of_week="Thu",
   )
-
-  let dt = initDateTime(1, mJan, 2000, 0, 0, 0)
-  checkSome(
-    cron.getNext(dt),
-    initDateTime(1, mJan, 2000, 0, 0, 0)
+  cron.checkCron(
+    "2000-01-01 00:00:00",
+    "2000-01-01 00:00:00",
+  )
+  cron.checkCron(
+    "2000-01-02 00:00:00",
+    "2000-01-06 00:00:00",
   )
 
-test "0 0 1,15 * Thu":
+
+test "* * * 5-13 1/3 * 2009/2":
   let cron = newCron(
-    minute="0",
-    hour="0",
-    day_of_month="1,15",
-    day_of_week="Thu",
+    year="2009/2",
+    month="1/3",
+    day_of_month="5-13",
   )
-
-  let dt = initDateTime(2, mJan, 2000, 0, 0, 0)
-  checkSome(
-    cron.getNext(dt),
-    initDateTime(6, mJan, 2000, 0, 0, 0)
+  cron.checkCron(
+    "2008-12-01 00:00:00",
+    "2009-01-05 00:00:00",
+  )
+  cron.checkCron(
+    "2009-10-14 00:00:00",
+    "2011-01-05 00:00:00",
   )

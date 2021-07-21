@@ -59,6 +59,8 @@ proc getNextForStepRange*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   var nextVal = max(fieldMin, fieldVal)
   let offset = (expr.step - (nextVal - fieldMin)) mod expr.step
   nextVal += offset
+  if offset < 0:
+    nextVal += expr.step
 
   if nextVal <= fieldMax:
     some(nextVal)
@@ -73,6 +75,8 @@ proc getNextForStepNum*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   var nextVal = max(fieldMin, fieldVal)
   let offset = (expr.step - (nextVal - fieldMin)) mod expr.step
   nextVal += offset
+  if offset < 0:
+    nextVal += expr.step
 
   if nextVal <= fieldMax:
     some(nextVal)
@@ -95,8 +99,11 @@ proc getNextForStepAll*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   let fieldMin = field.minValue(dt)
   let fieldMax = field.maxValue(dt)
   var nextVal = max(fieldVal, fieldMin)
-  let offset = (expr.step - (fieldVal - fieldMin)) mod expr.step
+  let offset = abs(expr.step - (fieldVal - fieldMin)) mod expr.step
   nextVal += offset
+  if offset < 0:
+    nextVal += expr.step
+
   if nextVal <= fieldMax:
     some(nextVal)
   else:
