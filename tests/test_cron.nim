@@ -118,14 +118,6 @@ test "23 1/3 * * *":
   )
 
 
-test "5 4 * * sun":
-  let cron = newCron(minute="5", hour="4", day_of_week="sun")
-  cron.checkCron(
-    "2000-01-01 00:00:00",
-    "2000-01-02 04:05:00",
-  )
-
-
 test "0 0,12 1 */2 *":
   let cron = newCron(
     minute="0",
@@ -308,4 +300,32 @@ test "0 0 */3 * *":
   cron.checkCron(
     "2000-02-28 00:00:01",
     "2000-03-02 00:00:00",
+  )
+
+
+test "5 4 * * sun":
+  let cron = newCron(minute="5", hour="4", day_of_week="sun")
+  cron.checkCron(
+    "2000-01-01 00:00:00",
+    "2000-01-02 04:05:00",
+  )
+
+
+test "5 4 1 * sun":
+  let cron = newCron(minute="5", hour="4", day_of_month="1", day_of_week="sun")
+  cron.checkCron(
+    "2000-01-01 00:00:00",
+    "2000-01-01 04:05:00",
+  )
+  cron.checkCron(
+    "2000-01-01 12:00:00",
+    "2000-01-02 04:05:00",
+  )
+  cron.checkCron(
+    "2000-01-02 12:00:00",
+    "2000-01-09 04:05:00",
+  )
+  cron.checkCron(
+    "2000-02-29 12:00:00",
+    "2000-03-01 04:05:00",
   )
