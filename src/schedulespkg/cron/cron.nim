@@ -99,7 +99,7 @@ proc getNextForStepAll*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   let fieldMin = field.minValue(dt)
   let fieldMax = field.maxValue(dt)
   var nextVal = max(fieldVal, fieldMin)
-  let offset = abs(expr.step - (fieldVal - fieldMin)) mod expr.step
+  let offset = (expr.step - (fieldVal - fieldMin)) mod expr.step
   nextVal += offset
   if offset < 0:
     nextVal += expr.step
@@ -201,6 +201,8 @@ proc ceil(dt: DateTime): DateTime =
   if dt.nanosecond > 0:
     result -= initTimeInterval(nanoseconds=dt.nanosecond)
     result += initTimeInterval(seconds=1)
+  if dt.second > 0:
+    result += initTimeInterval(seconds=(60 - dt.second))
 
 
 proc initDateTime(values: ref Table[FieldKind, int]): DateTime =
@@ -217,7 +219,10 @@ proc getInterval(cron: Cron, kind: FieldKind, dt: DateTime): int =
   let someNext = cron.fields[kind].getNext(dt)
   result = someNext.get - cron.fields[kind].getValue(dt)
   if result < 0:
-    result += cron.fields[kind].maxValue(dt)
+    result += (
+      cron.fields[kind].maxValue(dt) -
+      cron.fields[kind].minValue(dt) + 1
+    )
 
 proc getNext*(cron: Cron, dt: DateTime): Option[DateTime] =
   # Given a cron object and a datetime, calculate the next fire time.
@@ -231,9 +236,6 @@ proc getNext*(cron: Cron, dt: DateTime): Option[DateTime] =
   #
   # For the rest of cron fields, let's keep adding intervals.
   var startTime = dt.ceil
-
-  let secondsOffset = cron.getInterval(fkSecond, startTime)
-  startTime += secondsOffset.seconds
 
   let minutesOffset = cron.getInterval(fkMinute, startTime)
   startTime += minutesOffset.minutes

@@ -3,8 +3,7 @@ import options
 import times
 import schedules
 
-template checkCron(c: untyped, start: string, expect: string) =
-  let cron = c
+proc checkCron(cron: Cron, start: string, expect: string) =
   let dt = parse(start, "yyyy-MM-dd HH:mm:ss")
   let v = cron.getNext(dt)
   check v.isSome
@@ -109,6 +108,14 @@ test "23 1/3 * * *":
     "2000-01-01 13:00:00",
     "2000-01-01 13:23:00",
   )
+  cron.checkCron(
+    "2000-01-01 13:23:00",
+    "2000-01-01 13:23:00",
+  )
+  cron.checkCron(
+    "2000-01-01 13:23:01",
+    "2000-01-01 16:23:00",
+  )
 
 
 test "5 4 * * sun":
@@ -170,7 +177,7 @@ test "0 0 1,15 * Thu":
   )
 
 
-test "* * * 5-13 1/3 * 2009/2":
+test "* * 5-13 1/3 * 2009/2":
   let cron = newCron(
     year="2009/2",
     month="1/3",
@@ -183,4 +190,94 @@ test "* * * 5-13 1/3 * 2009/2":
   cron.checkCron(
     "2009-10-14 00:00:00",
     "2011-01-05 00:00:00",
+  )
+
+
+test "*/1 * * * *":
+  let cron = newCron(
+    minute="*/1"
+  )
+  cron.checkCron(
+    "2000-01-01 00:00:00",
+    "2000-01-01 00:00:00",
+  )
+  cron.checkCron(
+    "2000-01-01 00:00:01",
+    "2000-01-01 00:01:00",
+  )
+  cron.checkCron(
+    "2000-01-01 00:00:59",
+    "2000-01-01 00:01:00",
+  )
+  cron.checkCron(
+    "2000-01-01 00:01:00",
+    "2000-01-01 00:01:00",
+  )
+  cron.checkCron(
+    "1999-12-31 23:59:59",
+    "2000-01-01 00:00:00",
+  )
+
+
+test "*/5 * * * *":
+  let cron = newCron(
+    minute="*/5"
+  )
+  cron.checkCron(
+    "2000-01-01 00:00:00",
+    "2000-01-01 00:00:00",
+  )
+  cron.checkCron(
+    "2000-01-01 00:00:01",
+    "2000-01-01 00:05:00",
+  )
+  cron.checkCron(
+    "2000-01-01 00:04:59",
+    "2000-01-01 00:05:00",
+  )
+  cron.checkCron(
+    "1999-12-31 23:55:01",
+    "2000-01-01 00:00:00",
+  )
+
+
+
+test "0 */1 * * *":
+  let cron = newCron(minute="0", hour="*/1")
+  cron.checkCron(
+    "1999-12-31 23:59:59",
+    "2000-01-01 00:00:00",
+  )
+  cron.checkCron(
+    "2000-01-01 00:00:00",
+    "2000-01-01 00:00:00",
+  )
+  cron.checkCron(
+    "2000-01-01 00:00:01",
+    "2000-01-01 01:00:00",
+  )
+  cron.checkCron(
+    "2000-01-01 00:59:59",
+    "2000-01-01 01:00:00",
+  )
+
+
+
+test "0 */3 * * *":
+  let cron = newCron(minute="0", hour="*/3")
+  cron.checkCron(
+    "1999-12-31 23:59:59",
+    "2000-01-01 00:00:00",
+  )
+  cron.checkCron(
+    "2000-01-01 00:00:00",
+    "2000-01-01 00:00:00",
+  )
+  cron.checkCron(
+    "2000-01-01 00:00:01",
+    "2000-01-01 03:00:00",
+  )
+  cron.checkCron(
+    "2000-01-01 02:59:59",
+    "2000-01-01 03:00:00",
   )
