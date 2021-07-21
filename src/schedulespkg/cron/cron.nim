@@ -100,13 +100,14 @@ proc getNextForStepAll*(expr: Expr, field: Field, dt: DateTime): Option[int] =
   let fieldMax = field.maxValue(dt)
   var nextVal = max(fieldVal, fieldMin)
   let offset = (expr.step - (fieldVal - fieldMin)) mod expr.step
-  echo(("get next for step all", nextVal, fieldMin, fieldMax, offset))
   nextVal += offset
   if offset < 0:
     nextVal += expr.step
 
   if nextVal <= fieldMax:
     some(nextVal)
+  elif field.kind == fkDayOfMonth: # cross-month - add enough days
+    some(nextVal - fieldMax)
   else:
     some(fieldMin)
 
@@ -252,7 +253,6 @@ proc getNext*(cron: Cron, dt: DateTime): Option[DateTime] =
     dayOfWeekOffset
   else:
     min(dayOfMonthOffset, dayOfWeekOffset)
-  echo(("day offset", startTime, dayOfMonthOffset))
   startTime += daysOffset.days
 
   let monthsOffset = cron.getInterval(fkMonth, startTime)
