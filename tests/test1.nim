@@ -4,18 +4,20 @@ import os, times, options, asyncdispatch
 import schedules
 
 schedules:
-  every(seconds=1, id="sync tick"):
-    echo("sync tick, seconds=1 ", now())
+  cron(minute="*/1", id="cron - sync tick"):
+    echo("(cron) sync tick, every minute", now())
+    sleep(3000)
 
-  every(seconds=1, id="async tick", async=true):
-    echo("async tick, seconds=1 ", now())
+  cron(minute="*/1", id="cron - async tick", async=true):
+    echo("(cron) async tick, every minute", now())
+    await sleepAsync(3000)
 
   every(seconds=1, id="sync sleep", throttle=2):
-    echo("async sleep, seconds=1", now())
+    echo("(interval) async sleep, seconds=1", now())
     sleep(3000)
 
   every(seconds=2, id="async sleep", async=true, throttle=2):
-    echo("async sleep, seconds=1", now())
+    echo("(interval) async sleep, seconds=1", now())
     await sleepAsync(4000)
 
 #test "IntervalBeater.$":

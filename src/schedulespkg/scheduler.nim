@@ -14,6 +14,8 @@
 
 import macros, macrocache, options, times, asyncdispatch, tables, sequtils, logging
 
+from ./cron/cron import Cron, newCron, getNext
+
 var logger* = newConsoleLogger() ## By default, the logger is attached to no handlers.
 ## If you want to show logs, please call `addHandler(logger)`.
 
@@ -59,7 +61,7 @@ proc submit*(self: Throttler, fut: Future[void]) =
 type
   BeaterKind* {.pure.} = enum
     bkInterval
-    #bkCron: TODO
+    bkCron
 
   Beater* = ref object of RootObj ## Beater generates beats for the next runs.
     id: string
@@ -70,11 +72,15 @@ type
     case kind*: BeaterKind
     of bkInterval:
       interval*: TimeInterval
+    of bkCron:
+      cron*: Cron
 
 proc `$`*(beater: Beater): string =
   case beater.kind
   of bkInterval:
     "Beater(" & $beater.kind & "," & $beater.interval & ")"
+  of bkCron:
+    "Beater(" & $beater.kind & "* * * * *" & ")"
 
 proc initBeater*(
   interval: TimeInterval,
@@ -118,6 +124,48 @@ proc initBeater*(
     endTime: endTime,
   )
 
+proc initBeater*(
+  cron: Cron,
+  threadProc: BeaterThreadProc,
+  startTime: Option[DateTime] = none(DateTime),
+  endTime: Option[DateTime] = none(DateTime),
+  id: string = "",
+  throttleNum: int = 1,
+): Beater =
+  ## Initialize a Beater, which kind is bkInterval.
+  ##
+  ## startTime and endTime are optional.
+  Beater(
+    id: id,
+    kind: bkCron,
+    cron: cron,
+    beaterProc: threadProc.toAsync,
+    throttler: initThrottler(num=throttleNum),
+    startTime: if startTime.isSome: startTime.get() else: now(),
+    endTime: endTime,
+  )
+
+proc initBeater*(
+  cron: Cron,
+  asyncProc: BeaterAsyncProc,
+  startTime: Option[DateTime] = none(DateTime),
+  endTime: Option[DateTime] = none(DateTime),
+  id: string = "",
+  throttleNum: int = 1,
+): Beater =
+  ## Initialize a Beater, which kind is bkInterval.
+  ##
+  ## startTime and endTime are optional.
+  Beater(
+    id: id,
+    kind: bkCron,
+    cron: cron,
+    beaterProc: asyncProc,
+    throttler: initThrottler(num=throttleNum),
+    startTime: if startTime.isSome: startTime.get() else: now(),
+    endTime: endTime,
+  )
+
 proc fireTime*(
   self: Beater,
   prev: Option[DateTime],
@@ -135,18 +183,22 @@ proc fireTime*(
   ##
   ## If `self.endTime` is set and greater than the fire time,
   ## a `none(DateTime)` is returned.
-  result = some(
-    if prev.isNone:
-      if self.startTime >= now:
-        self.startTime
+  result = case self.kind
+  of bkInterval:
+    some(
+      if prev.isNone:
+        if self.startTime >= now:
+          self.startTime
+        else:
+          let passed = cast[int](now.toTime.toUnix - self.startTime.toTime.toUnix)
+          let intervalLen = cast[int]((0.fromUnix + self.interval).toUnix)
+          let leftSec = intervalLen - passed mod intervalLen
+          now + initTimeInterval(seconds=leftSec)
       else:
-        let passed = cast[int](now.toTime.toUnix - self.startTime.toTime.toUnix)
-        let intervalLen = cast[int]((0.fromUnix + self.interval).toUnix)
-        let leftSec = intervalLen - passed mod intervalLen
-        now + initTimeInterval(seconds=leftSec)
-    else:
-      prev.get() + self.interval
-  )
+        prev.get() + self.interval
+    )
+  of bkCron:
+    self.cron.getNext(now)
 
   if self.endTime.isSome and result.get() > self.endTime.get():
     result = none(DateTime)
@@ -228,6 +280,85 @@ proc serve*(self: Scheduler) =
 proc waitFor*(self: Scheduler) =
   ## Run all beats til they're completed.
   waitFor start(self)
+
+proc parseCron(call: NimNode): tuple[
+  async: bool,
+  id: NimNode,
+  throttleNum: NimNode,
+  body: NimNode,
+  startTime: NimNode,
+  endTime: NimNode,
+  year: NimNode,
+  month: NimNode,
+  day_of_month: NimNode,
+  day_of_week: NimNode,
+  hour: NimNode,
+  minute: NimNode,
+] =
+  var async: bool = false
+  var id = newLit("")
+  var throttleNum = newLit(1)
+  var startTime = newCall(bindSym("none"), ident("DateTime"))
+  var endTime = newCall(bindSym("none"), ident("DateTime"))
+  var year, month, day_of_week, day_of_month, hour, minute  = newLit("*")
+  let body = call[call.len-1]
+  body.expectKind nnkStmtList
+  for e in call[1 ..< call.len-1]:
+    e.expectKind nnkExprEqExpr
+    case e[0].`$`
+    of "async": async = e[1].`$` == "true"
+    of "id": id = e[1]
+    of "throttle": throttleNum = e[1]
+    of "startTime": startTime = newCall(bindSym("some"), e[1])
+    of "endTime": endTime = newCall(bindSym("some"), e[1])
+    of "year": year = e[1]
+    of "month": month = e[1]
+    of "day_of_month": day_of_month = e[1]
+    of "day_of_week": day_of_week = e[1]
+    of "hour": hour = e[1]
+    of "minute": minute = e[1]
+    else: macros.error("unexpected parameter for `cron`: " & e[0].`$`, call)
+  result = (
+    async: async,
+    id: id,
+    throttleNum: throttleNum,
+    body: body,
+    startTime: startTime,
+    endTime: endTime,
+    year: year,
+    month: month,
+    day_of_month: day_of_month,
+    day_of_week: day_of_week,
+    hour: hour,
+    minute: minute,
+  )
+
+proc processCron(call: NimNode): NimNode=
+  let (asyncProc, id, throttleNum, procBody, startTime, endTime, year, month, day_of_month, day_of_week, hour, minute) = parseCron(call)
+  let cron = quote do:
+    newCron(year=`year`, month=`month`, day_of_month=`day_of_month`, day_of_week=`day_of_week`, hour=`hour`, minute=`minute`)
+  if asyncProc:
+    result = quote do:
+      initBeater(
+        id = `id`,
+        cron = `cron`,
+        throttleNum = `throttleNum`,
+        startTime = `startTime`,
+        endTime = `endTime`,
+        asyncProc = proc() {.async.} =
+          `procBody`
+      )
+  else:
+    result = quote do:
+      initBeater(
+        id = `id`,
+        cron = `cron`,
+        throttleNum = `throttleNum`,
+        startTime = `startTime`,
+        endTime = `endTime`,
+        threadProc = proc() {.thread.} =
+          `procBody`
+      )
 
 proc parseEvery(call: NimNode): tuple[
   async: bool,
@@ -324,6 +455,7 @@ proc processSchedule(call: NimNode): NimNode =
   let cmdName = call[0].`$`
   case cmdName
   of "every": processEvery(call)
+  of "cron": processCron(call)
   else: raise newException(Exception, "unknown cmd: " & cmdName)
 
 proc schedulerEx(sched: NimNode, body: NimNode): NimNode =
