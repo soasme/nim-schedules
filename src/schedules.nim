@@ -31,6 +31,9 @@
 ##
 ## ## Schedule By Cron
 ##
+## You can set minute, hour, day_of_month, month, day_of_week, and year in the cron() call.
+## Each field is a string in cron-syntax, containing any of the allowed values, along with various combinations of the allowed special characters for that field (, - * /).
+##
 ## Example usage::
 ##
 ##     import schedules, times, asyncdispatch
