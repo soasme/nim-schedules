@@ -31,6 +31,21 @@ schedules:
 1. Schedule thread proc every 10 seconds.
 2. Schedule async proc every 10 seconds.
 
+```nim
+import schedules, times, asyncdispatch
+
+schedules:
+  cron(minute="*/1", hour="*", day_of_month="*", month="*", day_of_week="*", id="tick"):
+    echo("tick", now())
+
+  cron(minute="*/1", hour="*", day_of_month="*", month="*", day_of_week="*", id="atick", async=true):
+    echo("tick", now())
+    await sleepAsync(3000)
+```
+
+1. Schedule thread proc every minute.
+2. Schedule async proc every minute.
+
 Note:
 
 * Don't forget adding `--threads:on` when compiling your application.
