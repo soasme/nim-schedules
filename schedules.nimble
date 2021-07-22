@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.1.1"
+version       = "0.1.2"
 author        = "Ju Lin"
 description   = "A Nim scheduler library that lets you kick off jobs at regular intervals."
 license       = "MIT"

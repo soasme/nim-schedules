@@ -2,6 +2,8 @@
 
 A Nim scheduler library that lets you kick off jobs at regular intervals.
 
+Read the [documentation](https://www.soasme.com/nim-schedules/schedules.html).
+
 Features:
 
 * Simple to use API for scheduling jobs.
@@ -17,6 +19,7 @@ $ nimble install schedules
 ## Usage
 
 ```nim
+# File: scheduleExample.nim
 import schedules, times, asyncdispatch
 
 schedules:
@@ -30,6 +33,24 @@ schedules:
 
 1. Schedule thread proc every 10 seconds.
 2. Schedule async proc every 10 seconds.
+
+Run:
+
+```bash
+nim c --threads:on -r scheduleExample.nim
+```
+
+Note:
+
+* Don't forget **`--threads:on`** when compiling your application.
+* The library schedules all jobs at a regular interval, but it'll be impacted
+  by your system load.
+
+## Advance Usages
+
+### Cron
+
+You can use `cron` to schedule jobs using cron-like syntax.
 
 ```nim
 import schedules, times, asyncdispatch
@@ -45,14 +66,6 @@ schedules:
 
 1. Schedule thread proc every minute.
 2. Schedule async proc every minute.
-
-Note:
-
-* Don't forget adding `--threads:on` when compiling your application.
-* The library schedules all jobs at a regular interval, but it'll be impacted
-  by your system load.
-
-## Advance Usages
 
 ### Throttling
 
@@ -113,7 +126,9 @@ when isMainModule:
 ### Set Start Time and End Time
 
 You can limit the schedules running in a designated range of time by specifying
-`startTime` and `endTime`.  For example,
+`startTime` and `endTime`.
+
+For example,
 
 ```nim
 import schedules, times, asyncdispatch, os
@@ -131,10 +146,15 @@ when isMainModule:
   waitFor demoSetRange.start()
 ```
 
+Parameters `startTime` and `endTime` can be used independently. For example,
+you can set startTime only, or set endTime only.
+
 ## ChangeLog
 
 Released:
 
+* v0.1.2, 8 Jul, 2021, Bugfix: the first job schedule should be after startTime.
+* v0.1.1, update metadata.
 * v0.1.0, initial release.
 
 ## License
