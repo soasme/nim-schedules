@@ -153,6 +153,7 @@ you can set startTime only, or set endTime only.
 
 Released:
 
+* v0.2.0, 22 Jul, 2021, New feature: cron.
 * v0.1.2, 8 Jul, 2021, Bugfix: the first job schedule should be after startTime.
 * v0.1.1, update metadata.
 * v0.1.0, initial release.
