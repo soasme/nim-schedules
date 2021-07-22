@@ -48,6 +48,25 @@ Note:
 
 ## Advance Usages
 
+### Cron
+
+You can use `cron` to schedule jobs using cron-like syntax.
+
+```nim
+import schedules, times, asyncdispatch
+
+schedules:
+  cron(minute="*/1", hour="*", day_of_month="*", month="*", day_of_week="*", id="tick"):
+    echo("tick", now())
+
+  cron(minute="*/1", hour="*", day_of_month="*", month="*", day_of_week="*", id="atick", async=true):
+    echo("tick", now())
+    await sleepAsync(3000)
+```
+
+1. Schedule thread proc every minute.
+2. Schedule async proc every minute.
+
 ### Throttling
 
 By default, only one instance of the job is to be scheduled at the same time.
