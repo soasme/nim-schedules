@@ -12,8 +12,8 @@
 ##         echo("sync tick ", now())
 ##
 
-import schedulespkg/scheduler
-import schedulespkg/cron/cron
+import schedules/scheduler
+import schedules/cron/cron
 
 export logger
 export BeaterAsyncProc
