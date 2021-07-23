@@ -40,7 +40,11 @@ proc parseMonth(s: string): int =
     idx + 1
 
 proc parseWeekday(s: string): int =
-  return WEEKDAYS.find(s)
+  let idx = WEEKDAYS.find(s)
+  result = if idx == -1:
+    -1
+  else:
+    idx + 1
 
 proc parseNonSeq(s: string): Expr =
   if s == "":
@@ -207,7 +211,7 @@ proc parseMonths*(s: string): Expr =
     )
   )
 
-let WEEKS_RANGE = 0 .. 6
+let WEEKS_RANGE = 1 .. 7
 proc parseDayOfWeeks*(s: string): Expr =
   parseSeq(toLowerAscii(s), proc (s: string): Expr =
     parseStep(s, WEEKS_RANGE, proc (s: string): Expr =
@@ -232,73 +236,3 @@ proc parseYears*(s: string): Expr =
       raise newException(ValueError, fmt"invalid year: {s}")
     )
   )
-
-when isMainModule:
-  echo parseMinutes("*")
-  echo parseMinutes("*/2")
-  echo parseMinutes("*/59")
-  echo parseMinutes("0")
-  echo parseMinutes("0/2")
-  echo parseMinutes("0,1,2")
-  #echo parseMinutes("0,1,2,")
-  echo parseMinutes("0-59")
-  echo parseMinutes("0-59/2")
-  #echo parseMinutes("0-59/-2")
-  #echo parseMinutes("0-60/2")
-  echo parseHours("*")
-  echo parseHours("*/2")
-  echo parseHours("*/23")
-  echo parseHours("0")
-  echo parseHours("0,1,2")
-  echo parseHours("0-23")
-  echo parseHours("0-23/2")
-
-  echo parseDayOfMonths("*")
-  echo parseDayOfMonths("*/2")
-  echo parseDayOfMonths("*/15")
-  #echo parseDayOfMonths("0")
-  echo parseDayOfMonths("1,2,3")
-  echo parseDayOfMonths("1-23")
-  echo parseDayOfMonths("1-23/2")
-  echo parseDayOfMonths("l")
-  echo parseDayOfMonths("last")
-  echo parseDayOfMonths("12w")
-  echo parseDayOfMonths("12W")
-
-  echo parseMonths("*")
-  echo parseMonths("*/2")
-  echo parseMonths("*/3")
-  echo parseMonths("1,2,3")
-  echo parseMonths("1-12")
-  echo parseMonths("1-12/2")
-  echo parseMonths("jan,feb,mar,apr")
-  # echo parseMonths("jan,feb,mar,apr,mao")
-  echo parseMonths("jan-dec")
-  echo parseMonths("jan-dec/2")
-  echo parseMonths("Jan,Feb,Mar,Apr")
-  echo parseMonths("JAN-DEC")
-  echo parseMonths("JAN-DEC/2")
-
-  echo parseDayOfWeeks("*")
-  echo parseDayOfWeeks("?")
-  echo parseDayOfWeeks("*/2")
-  echo parseDayOfWeeks("*/3")
-  echo parseDayOfWeeks("0,1,2,3")
-  echo parseDayOfWeeks("1-6")
-  echo parseDayOfWeeks("1-6/2")
-  echo parseDayOfWeeks("mon,tue,wed,thu,fri,sat,sun")
-  echo parseDayOfWeeks("mon-sun")
-  echo parseDayOfWeeks("mon-sun/2")
-  echo parseDayOfWeeks("MON,TUE,WED,THU,FRI,SAT,SUN")
-  echo parseDayOfWeeks("MON-SUN")
-  echo parseDayOfWeeks("MON-SUN/2")
-  echo parseDayOfWeeks("1l")
-  echo parseDayOfWeeks("1L")
-  echo parseDayOfWeeks("1#3")
-  echo parseDayOfWeeks("1#5")
-
-  echo parseYears("*")
-  echo parseYears("2020,2021")
-  echo parseYears("2020-2021")
-
-  #echo parseSeq("", parseNonSeq)

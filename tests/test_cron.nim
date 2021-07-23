@@ -2,12 +2,73 @@ import unittest
 import options
 import times
 import schedules
+import schedules/cron/parser
+import schedules/cron/expr
 
 proc checkCron(cron: Cron, start: string, expect: string) =
   let dt = parse(start, "yyyy-MM-dd HH:mm:ss")
   let v = cron.getNext(dt)
   check v.isSome
   check v.get == parse(expect, "yyyy-MM-dd HH:mm:ss")
+
+test "cron parser":
+  check $parseMinutes("*") == "*"
+  check $parseMinutes("*/2") == "*/2"
+  check $parseMinutes("*/59") == "*/59"
+  check $parseMinutes("0") == "0"
+  check $parseMinutes("0/2") == "0/2"
+  check $parseMinutes("0,1,2") == "0,1,2"
+  check $parseMinutes("0-59") == "0-59"
+  check $parseMinutes("0-59/2") == "0-59/2"
+  check $parseHours("*") == "*"
+  check $parseHours("*/2") == "*/2"
+  check $parseHours("*/23") == "*/23"
+  check $parseHours("0") == "0"
+  check $parseHours("0,1,2") == "0,1,2"
+  check $parseHours("0-23") == "0-23"
+  check $parseHours("0-23/2") == "0-23/2"
+  check $parseDayOfMonths("*") == "*"
+  check $parseDayOfMonths("*/2") == "*/2"
+  check $parseDayOfMonths("*/15") == "*/15"
+  check $parseDayOfMonths("1,2,3") == "1,2,3"
+  check $parseDayOfMonths("1-23") == "1-23"
+  check $parseDayOfMonths("1-23/2") == "1-23/2"
+  check $parseDayOfMonths("l") == "L"
+  check $parseDayOfMonths("last") == "L"
+  check $parseDayOfMonths("12w") == "12W"
+  check $parseDayOfMonths("12W") == "12W"
+  check $parseMonths("*") == "*"
+  check $parseMonths("*/2") == "*/2"
+  check $parseMonths("*/3") == "*/3"
+  check $parseMonths("1,2,3") == "1,2,3"
+  check $parseMonths("1-12") == "1-12"
+  check $parseMonths("1-12/2") == "1-12/2"
+  check $parseMonths("jan,feb,mar,apr") == "1,2,3,4"
+  check $parseMonths("jan-dec") == "1-12"
+  check $parseMonths("jan-dec/2") == "1-12/2"
+  check $parseMonths("Jan,Feb,Mar,Apr") == "1,2,3,4"
+  check $parseMonths("JAN-DEC") == "1-12"
+  check $parseMonths("JAN-DEC/2") == "1-12/2"
+  check $parseDayOfWeeks("*") == "*"
+  check $parseDayOfWeeks("?") == "?"
+  check $parseDayOfWeeks("*/2") == "*/2"
+  check $parseDayOfWeeks("*/3") == "*/3"
+  check $parseDayOfWeeks("1,2,3") == "1,2,3"
+  check $parseDayOfWeeks("1-6") == "1-6"
+  check $parseDayOfWeeks("1-6/2") == "1-6/2"
+  check $parseDayOfWeeks("mon,tue,wed,thu,fri,sat,sun") == "1,2,3,4,5,6,7"
+  check $parseDayOfWeeks("mon-sun") == "1-7"
+  check $parseDayOfWeeks("mon-sun/2") == "1-7/2"
+  check $parseDayOfWeeks("MON,TUE,WED,THU,FRI,SAT,SUN") == "1,2,3,4,5,6,7"
+  check $parseDayOfWeeks("MON-SUN") == "1-7"
+  check $parseDayOfWeeks("MON-SUN/2") == "1-7/2"
+  check $parseDayOfWeeks("1l") == "1L"
+  check $parseDayOfWeeks("1L") == "1L"
+  check $parseDayOfWeeks("1#3") == "1#3"
+  check $parseDayOfWeeks("1#5") == "1#5"
+  check $parseYears("*") == "*"
+  check $parseYears("2020,2021") == "2020,2021"
+  check $parseYears("2020-2021") == "2020-2021"
 
 
 test "* * 1-6 * *":
@@ -70,7 +131,7 @@ test "0 22 * * 1-5":
   let cron = newCron(minute="0", hour="22", day_of_week="1-5")
   cron.checkCron(
     "2000-01-01 00:00:00",
-    "2000-01-01 22:00:00",
+    "2000-01-03 22:00:00",
   )
 
 

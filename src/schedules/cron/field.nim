@@ -43,7 +43,7 @@ proc getValue*(field: Field, dt: DateTime): int =
   of fkYear:        int(dt.year)
   of fkMonth:       int(dt.month)
   of fkDayOfMonth:  int(dt.monthday)
-  of fkDayOfWeek:   int(dt.weekday)
+  of fkDayOfWeek:   int(dt.weekday) + 1
   of fkHour:        int(dt.hour)
   of fkMinute:      int(dt.minute)
   of fkSecond:      int(dt.second)
