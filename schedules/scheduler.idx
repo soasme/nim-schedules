@@ -1,0 +1,28 @@
+nim-schedules	scheduler.html#nimminusschedules	 nim-schedules	
+logger	schedules/scheduler.html#logger	scheduler: logger	
+BeaterAsyncProc	schedules/scheduler.html#BeaterAsyncProc	scheduler: BeaterAsyncProc	
+BeaterThreadProc	schedules/scheduler.html#BeaterThreadProc	scheduler: BeaterThreadProc	
+Throttler	schedules/scheduler.html#Throttler	scheduler: Throttler	
+initThrottler	schedules/scheduler.html#initThrottler,int	scheduler: initThrottler(num: int = 1): Throttler	
+throttled	schedules/scheduler.html#throttled,Throttler	scheduler: throttled(self: Throttler): bool	
+submit	schedules/scheduler.html#submit,Throttler,Future[void]	scheduler: submit(self: Throttler; fut: Future[void])	
+BeaterKind	schedules/scheduler.html#BeaterKind	scheduler: BeaterKind	
+Beater	schedules/scheduler.html#Beater	scheduler: Beater	
+`$`	schedules/scheduler.html#$,Beater	scheduler: `$`(beater: Beater): string	
+initBeater	schedules/scheduler.html#initBeater,TimeInterval,BeaterAsyncProc,Option[DateTime],Option[DateTime],string,int	scheduler: initBeater(interval: TimeInterval; asyncProc: BeaterAsyncProc;\n           startTime: Option[DateTime] = none(DateTime);\n           endTime: Option[DateTime] = none(DateTime); id: string = &quot;&quot;;\n           throttleNum: int = 1): Beater	
+initBeater	schedules/scheduler.html#initBeater,TimeInterval,BeaterThreadProc,Option[DateTime],Option[DateTime],string,int	scheduler: initBeater(interval: TimeInterval; threadProc: BeaterThreadProc;\n           startTime: Option[DateTime] = none(DateTime);\n           endTime: Option[DateTime] = none(DateTime); id: string = &quot;&quot;;\n           throttleNum: int = 1): Beater	
+initBeater	schedules/scheduler.html#initBeater,Cron,BeaterThreadProc,Option[DateTime],Option[DateTime],string,int	scheduler: initBeater(cron: Cron; threadProc: BeaterThreadProc;\n           startTime: Option[DateTime] = none(DateTime);\n           endTime: Option[DateTime] = none(DateTime); id: string = &quot;&quot;;\n           throttleNum: int = 1): Beater	
+initBeater	schedules/scheduler.html#initBeater,Cron,BeaterAsyncProc,Option[DateTime],Option[DateTime],string,int	scheduler: initBeater(cron: Cron; asyncProc: BeaterAsyncProc;\n           startTime: Option[DateTime] = none(DateTime);\n           endTime: Option[DateTime] = none(DateTime); id: string = &quot;&quot;;\n           throttleNum: int = 1): Beater	
+fireTime	schedules/scheduler.html#fireTime,Beater,Option[DateTime],DateTime	scheduler: fireTime(self: Beater; prev: Option[DateTime]; now: DateTime): Option[DateTime]	
+fire	schedules/scheduler.html#fire,Beater	scheduler: fire(self: Beater): owned(Future[void])	
+Settings	schedules/scheduler.html#Settings	scheduler: Settings	
+newSettings	schedules/scheduler.html#newSettings,string,proc(Future[void])	scheduler: newSettings(appName = &quot;&quot;;\n            errorHandler: proc (fut: Future[void]) {.closure, gcsafe.} = nil): Settings	
+Scheduler	schedules/scheduler.html#Scheduler	scheduler: Scheduler	
+initScheduler	schedules/scheduler.html#initScheduler,Settings	scheduler: initScheduler(settings: Settings): Scheduler	
+register	schedules/scheduler.html#register,Scheduler,Beater	scheduler: register(self: Scheduler; beater: Beater)	
+idle	schedules/scheduler.html#idle,Scheduler	scheduler: idle(self: Scheduler): owned(Future[void])	
+start	schedules/scheduler.html#start,Scheduler	scheduler: start(self: Scheduler): owned(Future[void])	
+serve	schedules/scheduler.html#serve,Scheduler	scheduler: serve(self: Scheduler)	
+waitFor	schedules/scheduler.html#waitFor,Scheduler	scheduler: waitFor(self: Scheduler)	
+scheduler	schedules/scheduler.html#scheduler.m,untyped,untyped	scheduler: scheduler(sched: untyped; body: untyped): typed	
+schedules	schedules/scheduler.html#schedules.m,untyped	scheduler: schedules(body: untyped): untyped	

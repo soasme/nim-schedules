@@ -1,0 +1,16 @@
+getNextForLastDayOfMonth	schedules/cron/cron.html#getNextForLastDayOfMonth,Expr,Field,DateTime	cron: getNextForLastDayOfMonth(expr: Expr; field: Field; dt: DateTime): Option[int]	
+getNextForLastDayOfWeek	schedules/cron/cron.html#getNextForLastDayOfWeek,Expr,Field,DateTime	cron: getNextForLastDayOfWeek(expr: Expr; field: Field; dt: DateTime): Option[int]	
+getNextForIndex	schedules/cron/cron.html#getNextForIndex,Expr,Field,DateTime	cron: getNextForIndex(expr: Expr; field: Field; dt: DateTime): Option[int]	
+getNextForRange	schedules/cron/cron.html#getNextForRange,Expr,Field,DateTime	cron: getNextForRange(expr: Expr; field: Field; dt: DateTime): Option[int]	
+getNextForStepRange	schedules/cron/cron.html#getNextForStepRange,Expr,Field,DateTime	cron: getNextForStepRange(expr: Expr; field: Field; dt: DateTime): Option[int]	
+getNextForStepNum	schedules/cron/cron.html#getNextForStepNum,Expr,Field,DateTime	cron: getNextForStepNum(expr: Expr; field: Field; dt: DateTime): Option[int]	
+getNextForAll	schedules/cron/cron.html#getNextForAll,Expr,Field,DateTime	cron: getNextForAll(expr: Expr; field: Field; dt: DateTime): Option[int]	
+getNextForStepAll	schedules/cron/cron.html#getNextForStepAll,Expr,Field,DateTime	cron: getNextForStepAll(expr: Expr; field: Field; dt: DateTime): Option[int]	
+getNextForNum	schedules/cron/cron.html#getNextForNum,Expr,Field,DateTime	cron: getNextForNum(expr: Expr; field: Field; dt: DateTime): Option[int]	
+getNextForSeq	schedules/cron/cron.html#getNextForSeq,Expr,Field,DateTime	cron: getNextForSeq(expr: Expr; field: Field; dt: DateTime): Option[int]	
+getMinIter	schedules/cron/cron.html#getMinIter,Expr,Field,DateTime	cron: getMinIter(expr: Expr; field: Field; dt: DateTime): Option[int]	
+getNext	schedules/cron/cron.html#getNext,Expr,Field,DateTime	cron: getNext(expr: Expr; field: Field; dt: DateTime): Option[int]	
+getNext	schedules/cron/cron.html#getNext,Field,DateTime	cron: getNext(field: Field; dt: DateTime): Option[int]	
+Cron	schedules/cron/cron.html#Cron	cron: Cron	
+newCron	schedules/cron/cron.html#newCron,string,string,string,string,string,string,string	cron: newCron(second: string = &quot;*&quot;; minute: string = &quot;*&quot;; hour: string = &quot;*&quot;;\n        day_of_month: string = &quot;*&quot;; day_of_week: string = &quot;*&quot;; month: string = &quot;*&quot;;\n        year: string = &quot;*&quot;): Cron	
+getNext	schedules/cron/cron.html#getNext,Cron,DateTime	cron: getNext(cron: Cron; dt: DateTime): Option[DateTime]	
